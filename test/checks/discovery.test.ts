@@ -27,6 +27,14 @@ describe("discovery checks", () => {
     assert.equal(findings[0].source, src.source);
   });
 
+  it("DISCOVERY_TOOLS_LIST_CHANGED also warns for partial support, with the client's note", () => {
+    const s = snapshot({ initialize: { capabilities: { tools: { listChanged: true } } } });
+    const partial = profile({ supports: { toolsListChanged: { value: "partial", note: "regressed in 3.12", ...src } } });
+    const [f] = runCheck(check("DISCOVERY_TOOLS_LIST_CHANGED"), s, { profiles: [partial] });
+    assert.match(f.message, /does not reliably refresh/);
+    assert.match(f.message, /regressed in 3\.12/);
+  });
+
   it("DISCOVERY_RESOURCES_LIST_CHANGED and DISCOVERY_PROMPTS_LIST_CHANGED", () => {
     const s = snapshot({
       initialize: { capabilities: { resources: { listChanged: true }, prompts: { listChanged: true } } },

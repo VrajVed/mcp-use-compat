@@ -34,14 +34,28 @@ describe("transport checks", () => {
     assert.deepEqual(runCheck(check("TRANSPORT_AUTH_REQUIRED"), s), []);
   });
 
-  it("TRANSPORT_STDOUT_POLLUTION", () => {
+  it("TRANSPORT_STDOUT_POLLUTION warns on log lines", () => {
     assert.deepEqual(runCheck(check("TRANSPORT_STDOUT_POLLUTION"), snapshot()), []);
     const [f] = runCheck(
       check("TRANSPORT_STDOUT_POLLUTION"),
       snapshot({ io: { stdoutNonJsonLines: ["Server started"], stderrTail: [] } })
     );
-    assert.equal(f.severity, "error");
+    assert.equal(f.severity, "warn");
     assert.deepEqual(f.affects, ["stdio"]);
+  });
+
+  it("TRANSPORT_STDOUT_POLLUTION errors when a JSON-RPC message was corrupted", () => {
+    const [f] = runCheck(
+      check("TRANSPORT_STDOUT_POLLUTION"),
+      snapshot({ io: { stdoutNonJsonLines: ['loading...{"jsonrpc":"2.0","id":2,"result":{}}'], stderrTail: [] } })
+    );
+    assert.equal(f.severity, "error");
+    assert.match(f.message, /corrupted 1 JSON-RPC message/);
+  });
+
+  it("TRANSPORT_CONNECT_FAILED does not apply to modern-only servers", () => {
+    const s = snapshot({ connect: { ok: false, error: "Method not found" }, discover: { ok: true, result: {} } });
+    assert.equal(check("TRANSPORT_CONNECT_FAILED").appliesTo(s), false);
   });
 
   it("TRANSPORT_STDOUT_POLLUTION does not apply over HTTP", () => {

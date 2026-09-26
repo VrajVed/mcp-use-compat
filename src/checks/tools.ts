@@ -1,3 +1,4 @@
+import type { ClientProfile } from "../profiles/types.js";
 import type { RawItem, ServerSnapshot } from "../snapshot.js";
 import { connected, declared, isObject, items, str } from "./util.js";
 import { defineCheck, type Finding } from "./types.js";
@@ -5,10 +6,37 @@ import { defineCheck, type Finding } from "./types.js";
 /** Tool name format from the MCP spec (SEP-986), as enforced by the SDK. */
 export const SPEC_TOOL_NAME = /^[A-Za-z0-9._-]{1,128}$/;
 const SHORT_DESCRIPTION = 20;
-const LONG_DESCRIPTION = 1024;
 
 const hasTools = (s: ServerSnapshot) => connected(s) && items(s, "tools").length > 0;
 const toolName = (t: RawItem) => str(t.name) ?? "(unnamed)";
+const toolNames = (s: ServerSnapshot) => items(s, "tools").flatMap((t) => (typeof t.name === "string" ? [t.name] : []));
+const serverName = (s: ServerSnapshot) => str(s.initialize?.serverInfo?.name) ?? "server";
+
+/** Replaces characters outside the allowed class with "_". */
+export function sanitize(name: string, allowed: string): string {
+  return name.replace(new RegExp(`[^${allowed}]`, "g"), "_");
+}
+
+/** The prefix a client puts in front of this server's tool names ("" if none/unknown). */
+export function clientPrefix(s: ServerSnapshot, p: ClientProfile): string {
+  const rule = p.limits.toolNamePrefix?.value;
+  if (!rule) return "";
+  let server = serverName(s);
+  if (rule.lowercase) server = server.toLowerCase();
+  const allowed = p.limits.toolNameChars?.value;
+  if (allowed?.onInvalid === "replace") server = sanitize(server, allowed.allowed);
+  const prefix = rule.format.replace("{server}", server);
+  return rule.maxLength ? prefix.slice(0, rule.maxLength) : prefix;
+}
+
+/** The name the client ends up using, applying only documented replace/truncate behaviour. */
+export function clientToolName(s: ServerSnapshot, p: ClientProfile, name: string): string {
+  const chars = p.limits.toolNameChars?.value;
+  let result = clientPrefix(s, p) + (chars?.onInvalid === "replace" ? sanitize(name, chars.allowed) : name);
+  const length = p.limits.maxToolNameLength?.value;
+  if (length?.onExceed === "truncate") result = result.slice(0, length.max);
+  return result;
+}
 
 export const toolChecks = [
   defineCheck({
@@ -72,28 +100,34 @@ export const toolChecks = [
   }),
 
   defineCheck({
-    id: "TOOL_NAME_REJECTED_BY_CLIENT",
+    id: "TOOL_NAME_CLIENT_CHARS",
     area: "tools",
-    description: "Tool names match each client's stricter naming rules",
+    description: "Tool names use only characters each client accepts as-is",
     appliesTo: hasTools,
     run: (s, { profiles }) =>
       profiles.flatMap((p) => {
-        const rule = p.limits.toolNamePattern;
+        const rule = p.limits.toolNameChars;
         if (!rule) return [];
-        const pattern = new RegExp(rule.value);
-        return items(s, "tools")
-          .filter((t) => typeof t.name === "string" && !pattern.test(t.name))
-          .map(
-            (t): Finding => ({
-              checkId: "TOOL_NAME_REJECTED_BY_CLIENT",
-              severity: "error",
-              subject: toolName(t),
+        return toolNames(s)
+          .filter((name) => sanitize(name, rule.value.allowed) !== name)
+          .map((name): Finding => {
+            const { onInvalid } = rule.value;
+            const renamed = sanitize(name, rule.value.allowed);
+            return {
+              checkId: "TOOL_NAME_CLIENT_CHARS",
+              severity: onInvalid === "reject" ? "error" : "warn",
+              subject: name,
               client: p.id,
               source: rule.source,
-              message: `${p.displayName} requires tool names to match /${rule.value}/.`,
-              fix: "Rename the tool using only letters, digits, underscores and dashes.",
-            })
-          );
+              message:
+                onInvalid === "reject"
+                  ? `${p.displayName} rejects tool names with characters outside [${rule.value.allowed}].`
+                  : onInvalid === "replace"
+                    ? `${p.displayName} renames it to "${renamed}" (only [${rule.value.allowed}] allowed).`
+                    : `${p.displayName} only accepts [${rule.value.allowed}]${rule.note ? `; ${rule.note}` : "."}`,
+              fix: "Use only letters, digits, underscores and dashes in tool names.",
+            };
+          });
       }),
   }),
 
@@ -102,27 +136,75 @@ export const toolChecks = [
     area: "tools",
     description: "Prefixed tool names fit each client's length limit",
     appliesTo: hasTools,
-    run: (s, { profiles }) => {
-      const serverName = str(s.initialize?.serverInfo?.name) ?? "server";
-      return profiles.flatMap((p) => {
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
         const limit = p.limits.maxToolNameLength;
         if (!limit) return [];
-        const prefix = (p.limits.toolNamePrefix?.value ?? "").replace("{server}", serverName);
-        return items(s, "tools")
-          .filter((t) => typeof t.name === "string" && prefix.length + t.name.length > limit.value)
-          .map(
-            (t): Finding => ({
+        const prefix = clientPrefix(s, p);
+        const { max, onExceed } = limit.value;
+        return toolNames(s)
+          .filter((name) => prefix.length + name.length > max)
+          .map((name): Finding => {
+            const full = prefix + name;
+            const what =
+              onExceed === "reject"
+                ? "rejects it"
+                : onExceed === "truncate"
+                  ? `truncates it to "${full.slice(0, max)}"`
+                  : onExceed === "truncateWithHash"
+                    ? "truncates it and appends a hash, so the model sees a mangled name"
+                    : "may reject or rewrite it";
+            return {
               checkId: "TOOL_NAME_TOO_LONG",
-              severity: "warn",
-              subject: toolName(t),
+              severity: onExceed === "reject" ? "error" : "warn",
+              subject: name,
               client: p.id,
               source: limit.source,
-              message: `"${prefix}${t.name as string}" is ${prefix.length + (t.name as string).length} characters; ${p.displayName} allows ${limit.value}${prefix ? ` including its "${p.limits.toolNamePrefix!.value}" prefix (assuming the server is registered as "${serverName}")` : ""}.`,
-              fix: "Shorten the tool name (and recommend a short server name in your install docs).",
-            })
-          );
-      });
-    },
+              message: prefix
+                ? `With ${p.displayName}'s server prefix ("${prefix}", assuming the server is registered as "${serverName(s)}") the name is ${full.length} characters; the limit is ${max} and ${p.displayName} ${what}.`
+                : `The name is ${full.length} characters; ${p.displayName} allows ${max} and ${what}.`,
+              fix: "Shorten the tool name, and suggest a short server name in your install instructions.",
+            };
+          });
+      }),
+  }),
+
+  defineCheck({
+    id: "TOOL_NAME_CLIENT_COLLISION",
+    area: "tools",
+    description: "Tool names stay unique after a client renames or truncates them",
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const byClientName = new Map<string, string[]>();
+        for (const name of new Set(toolNames(s))) {
+          const sent = clientToolName(s, p, name);
+          byClientName.set(sent, [...(byClientName.get(sent) ?? []), name]);
+        }
+        const chars = p.limits.toolNameChars;
+        return [...byClientName]
+          .filter(([, names]) => names.length > 1)
+          .map(([sent, names]): Finding => {
+            // Blame character replacement when it alone makes the names equal.
+            const renamed = chars?.value.onInvalid === "replace" ? names.map((n) => sanitize(n, chars.value.allowed)) : names;
+            const byReplacement = new Set(renamed).size === 1;
+            const quoted = names.map((n) => `"${n}"`);
+            const list = quoted.length === 2 ? quoted.join(" and ") : quoted.join(", ");
+            return {
+              checkId: "TOOL_NAME_CLIENT_COLLISION",
+              severity: "error",
+              subject: names.join(", "),
+              client: p.id,
+              source: (byReplacement ? chars : p.limits.maxToolNameLength)?.source,
+              message: byReplacement
+                ? `${list} ${names.length === 2 ? "both" : "all"} become "${renamed[0]}" in ${p.displayName}, so only one of them is usable.`
+                : `${list} are truncated to the same name "${sent}" in ${p.displayName}, so only one of them is usable.`,
+              fix: byReplacement
+                ? "Use only letters, digits, _ and - in tool names."
+                : "Make tool names differ within their first characters.",
+            };
+          });
+      }),
   }),
 
   defineCheck({
@@ -189,20 +271,63 @@ export const toolChecks = [
   }),
 
   defineCheck({
-    id: "TOOL_DESCRIPTION_LONG",
+    id: "TOOL_DESCRIPTION_TRUNCATED",
     area: "tools",
-    description: `Tool descriptions are under ${LONG_DESCRIPTION} characters`,
-    appliesTo: hasTools,
-    run: (s) =>
-      items(s, "tools")
-        .filter((t) => typeof t.description === "string" && t.description.length > LONG_DESCRIPTION)
-        .map((t) => ({
-          checkId: "TOOL_DESCRIPTION_LONG",
-          severity: "info" as const,
-          subject: toolName(t),
-          message: `Description is ${(t.description as string).length} characters; it is sent with every request and some clients truncate long descriptions.`,
-          fix: "Move reference material into a resource or the tool result.",
-        })),
+    description: "Tool descriptions and server instructions fit each client's length limit",
+    appliesTo: connected,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const limit = p.limits.maxDescriptionLength;
+        if (!limit) return [];
+        const texts: Array<[string, string]> = items(s, "tools")
+          .filter((t) => typeof t.description === "string")
+          .map((t) => [toolName(t), t.description as string]);
+        if (s.initialize?.instructions) texts.push(["(server instructions)", s.initialize.instructions]);
+        return texts
+          .filter(([, text]) => text.length > limit.value)
+          .map(
+            ([subject, text]): Finding => ({
+              checkId: "TOOL_DESCRIPTION_TRUNCATED",
+              severity: "warn",
+              subject,
+              client: p.id,
+              source: limit.source,
+              message: `${text.length} characters; ${p.displayName} truncates after ${limit.value}, so the end is never seen by the model.`,
+              fix: "Put the most important guidance first and move reference material into a resource or the tool result.",
+            })
+          );
+      }),
+  }),
+
+  defineCheck({
+    id: "TOOL_STRUCTURED_OUTPUT_HANDLING",
+    area: "tools",
+    description: "Notes how each client passes structured tool output to the model",
+    appliesTo: (s) => connected(s) && items(s, "tools").some((t) => isObject(t.outputSchema)),
+    run: (s, { profiles }) => {
+      const tools = items(s, "tools").filter((t) => isObject(t.outputSchema)).map(toolName);
+      return profiles.flatMap((p): Finding[] => {
+        const rule = p.limits.structuredContent;
+        if (!rule || rule.value === "alongsideText") return [];
+        return [
+          {
+            checkId: "TOOL_STRUCTURED_OUTPUT_HANDLING",
+            severity: "info",
+            subject: tools.join(", "),
+            client: p.id,
+            source: rule.source,
+            message:
+              rule.value === "replacesText"
+                ? `${p.displayName} sends the model JSON of structuredContent instead of the text content, so anything only in the text is lost.`
+                : `${p.displayName} sends the model only the text content (structuredContent is used only when content is empty).`,
+            fix:
+              rule.value === "replacesText"
+                ? "Put everything the model needs into structuredContent."
+                : "Keep the text content complete; don't rely on structuredContent alone.",
+          },
+        ];
+      });
+    },
   }),
 
   defineCheck({

@@ -37,6 +37,23 @@ export interface ServerSnapshot {
     stderrTail: string[];
   };
   http?: HttpProbe;
+  /** server/discover (protocol revision 2026-07-28 and later). */
+  discover?: DiscoverProbe;
+  /** resources/read results for UI resources that tools link to, keyed by URI. */
+  uiReads?: Record<string, UiRead>;
+}
+
+export interface UiRead {
+  ok: boolean;
+  mimeType?: string;
+  error?: string;
+}
+
+export interface DiscoverProbe {
+  ok: boolean;
+  /** Raw result when ok. */
+  result?: Record<string, unknown>;
+  error?: { code?: number; message: string };
 }
 
 export type Target =

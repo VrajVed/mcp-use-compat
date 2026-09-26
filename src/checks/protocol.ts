@@ -1,11 +1,60 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
-import { LIST_KINDS, type ListKind } from "../snapshot.js";
+import { LIST_KINDS, type ListKind, type ServerSnapshot } from "../snapshot.js";
 import { connected, declared, str } from "./util.js";
 import { defineCheck, type Finding } from "./types.js";
 
 const KINDS = Object.keys(LIST_KINDS) as ListKind[];
 
+const MODERN = "2026-07-28";
+
+/** Server rejected initialize but answers server/discover. */
+export function modernOnly(s: ServerSnapshot): boolean {
+  return !s.connect.ok && !!s.discover?.ok;
+}
+
+function supportedVersions(s: ServerSnapshot): string[] {
+  const v = s.discover?.result?.supportedVersions;
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
 export const protocolChecks = [
+  defineCheck({
+    id: "PROTOCOL_MODERN_ONLY",
+    area: "protocol",
+    description: "Server still accepts the initialize handshake most clients use",
+    appliesTo: (s) => !!s.discover,
+    run: (s) =>
+      modernOnly(s)
+        ? [
+            {
+              checkId: "PROTOCOL_MODERN_ONLY",
+              severity: "error",
+              message: `Server rejects initialize and only answers server/discover (versions: ${supportedVersions(s).join(", ") || "none listed"}). Clients that still use the initialize handshake (protocol 2025-11-25 and older) cannot connect.`,
+              evidence: { initializeError: s.connect.error, discover: s.discover?.result },
+              fix: "Keep accepting initialize alongside server/discover until your target clients support the new revision.",
+            },
+          ]
+        : [],
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_DISCOVER_MISSING",
+    area: "protocol",
+    description: `Server implements server/discover (required from protocol ${MODERN})`,
+    appliesTo: (s) => connected(s) && !!s.discover,
+    run: (s) =>
+      s.discover!.ok
+        ? []
+        : [
+            {
+              checkId: "PROTOCOL_DISCOVER_MISSING",
+              severity: "info",
+              message: `server/discover failed (${s.discover!.error?.message ?? "unknown error"}), so the server only speaks the initialize-based protocol. That works with today's clients; clients on revision ${MODERN} have to fall back to initialize.`,
+              fix: `Upgrade to an SDK that supports protocol ${MODERN} when your target clients do.`,
+            },
+          ],
+  }),
+
   defineCheck({
     id: "PROTOCOL_VERSION_UNSUPPORTED",
     area: "protocol",

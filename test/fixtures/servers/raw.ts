@@ -25,6 +25,12 @@ export interface RawServerConfig {
   toolsCursorLoop?: boolean;
   /** Methods that return an internal error even if declared. */
   brokenMethods?: string[];
+  /** Reject initialize with "method not found" (a 2026-07-28-only server). */
+  rejectInitialize?: boolean;
+  /** Result for server/discover; omitted = method not found. */
+  discover?: Record<string, unknown>;
+  /** resources/read contents by URI. */
+  resourceContents?: Record<string, { mimeType?: string; text: string }>;
 }
 
 export async function serve(config: RawServerConfig): Promise<void> {
@@ -44,7 +50,7 @@ export async function serve(config: RawServerConfig): Promise<void> {
   };
 
   createInterface({ input: process.stdin }).on("line", async (line) => {
-    let msg: { id?: number | string; method?: string; params?: { cursor?: string } };
+    let msg: { id?: number | string; method?: string; params?: { cursor?: string; uri?: string } };
     try {
       msg = JSON.parse(line);
     } catch {
@@ -52,6 +58,24 @@ export async function serve(config: RawServerConfig): Promise<void> {
     }
     if (msg.id === undefined || !msg.method) return;
     const { id, method } = msg;
+
+    if (method === "server/discover" && config.discover) {
+      send({ jsonrpc: "2.0", id, result: config.discover });
+      return;
+    }
+
+    if (method === "resources/read") {
+      const uri = (msg.params as { uri?: string } | undefined)?.uri ?? "";
+      const content = config.resourceContents?.[uri];
+      if (content) send({ jsonrpc: "2.0", id, result: { contents: [{ uri, ...content }] } });
+      else send({ jsonrpc: "2.0", id, error: { code: -32002, message: `Resource not found: ${uri}` } });
+      return;
+    }
+
+    if (method === "initialize" && config.rejectInitialize) {
+      send({ jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found: initialize" } });
+      return;
+    }
 
     if (method === "initialize") {
       send({

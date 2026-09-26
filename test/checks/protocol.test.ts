@@ -6,6 +6,36 @@ import { byId, failedList, goodTool, list, runCheck, snapshot } from "./builders
 const check = (id: string) => byId(protocolChecks, id);
 
 describe("protocol checks", () => {
+  it("PROTOCOL_MODERN_ONLY", () => {
+    assert.equal(check("PROTOCOL_MODERN_ONLY").appliesTo(snapshot()), false);
+    assert.deepEqual(
+      runCheck(check("PROTOCOL_MODERN_ONLY"), snapshot({ discover: { ok: false, error: { code: -32601, message: "nope" } } })),
+      []
+    );
+    const [f] = runCheck(
+      check("PROTOCOL_MODERN_ONLY"),
+      snapshot({
+        connect: { ok: false, error: "Method not found: initialize" },
+        discover: { ok: true, result: { supportedVersions: ["2026-07-28"], capabilities: {} } },
+      })
+    );
+    assert.equal(f.severity, "error");
+    assert.match(f.message, /2026-07-28/);
+  });
+
+  it("PROTOCOL_DISCOVER_MISSING", () => {
+    assert.equal(check("PROTOCOL_DISCOVER_MISSING").appliesTo(snapshot()), false);
+    assert.deepEqual(
+      runCheck(check("PROTOCOL_DISCOVER_MISSING"), snapshot({ discover: { ok: true, result: { supportedVersions: [] } } })),
+      []
+    );
+    const [f] = runCheck(
+      check("PROTOCOL_DISCOVER_MISSING"),
+      snapshot({ discover: { ok: false, error: { code: -32601, message: "Method not found" } } })
+    );
+    assert.equal(f.severity, "info");
+  });
+
   it("PROTOCOL_VERSION_UNSUPPORTED", () => {
     assert.deepEqual(runCheck(check("PROTOCOL_VERSION_UNSUPPORTED"), snapshot()), []);
     const [f] = runCheck(

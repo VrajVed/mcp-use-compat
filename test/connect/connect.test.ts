@@ -42,6 +42,26 @@ describe("connect (stdio)", () => {
     assert.equal(s.lists.tools?.items.length, 1);
   });
 
+  it("probes server/discover on handshake-only servers", async () => {
+    const s = await connect({ ...opts, target: fixture("clean") });
+    assert.equal(s.discover?.ok, false);
+    assert.equal(s.discover?.error?.code, -32601);
+  });
+
+  it("recognises a server that only speaks the 2026-07-28 revision", async () => {
+    const s = await connect({ ...opts, target: fixture("modern-only") });
+    assert.equal(s.connect.ok, false);
+    assert.equal(s.discover?.ok, true);
+    assert.deepEqual(s.discover?.result?.supportedVersions, ["2026-07-28"]);
+  });
+
+  it("reads the UI resources tools link to", async () => {
+    const s = await connect({ ...opts, target: fixture("ui") });
+    assert.deepEqual(s.uiReads?.["ui://sales/dashboard"], { ok: true, mimeType: "text/html;profile=mcp-app" });
+    assert.equal(s.uiReads?.["ui://sales/missing"]?.ok, false);
+    assert.equal(s.uiReads?.["ui://sales/legacy"]?.mimeType, "text/html+skybridge");
+  });
+
   it("records list errors per method without failing the connection", async () => {
     const s = await connect({ ...opts, target: fixture("stdout-logger") });
     assert.equal(s.lists.prompts?.ok, false);

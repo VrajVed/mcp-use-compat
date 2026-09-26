@@ -29,17 +29,20 @@ export function itemLabel(item: RawItem, fallbackKey = "name"): string {
 }
 
 /**
- * One finding per selected client that is known NOT to support `feature`.
- * Used when the server uses a feature some clients ignore.
+ * One finding per selected client known not to support `feature`, or to
+ * support it only partially. Used when the server uses a feature some
+ * clients ignore. The client's note is appended to the message.
  */
 export function featureGap(
   profiles: ClientProfile[],
   feature: ClientFeature,
-  make: (profile: ClientProfile) => Omit<Finding, "client" | "source">
+  make: (profile: ClientProfile, partial: boolean) => Omit<Finding, "client" | "source">
 ): Finding[] {
   return profiles.flatMap((p) => {
     const support = p.supports[feature];
-    if (!support || support.value !== false) return [];
-    return [{ ...make(p), client: p.id, source: support.source }];
+    if (!support || support.value === true) return [];
+    const finding = make(p, support.value === "partial");
+    const message = support.note ? `${finding.message} (${support.note})` : finding.message;
+    return [{ ...finding, message, client: p.id, source: support.source }];
   });
 }

@@ -1,3 +1,4 @@
+import { modernOnly } from "./protocol.js";
 import { connected, isHttp, isStdio } from "./util.js";
 import { defineCheck } from "./types.js";
 
@@ -14,7 +15,7 @@ export const transportChecks = [
     id: "TRANSPORT_CONNECT_FAILED",
     area: "transport",
     description: "The server starts and answers initialize",
-    appliesTo: (s) => !authRequired(s),
+    appliesTo: (s) => !authRequired(s) && !modernOnly(s),
     run: (s) =>
       s.connect.ok
         ? []
@@ -55,12 +56,18 @@ export const transportChecks = [
     run: (s) => {
       const lines = s.io.stdoutNonJsonLines;
       if (lines.length === 0) return [];
+      // A protocol message glued to log output (no newline between them) is lost entirely.
+      const corrupted = lines.filter((l) => l.includes('"jsonrpc"'));
+      const count = `${lines.length}${lines.length >= 50 ? "+" : ""}`;
       return [
         {
           checkId: "TRANSPORT_STDOUT_POLLUTION",
-          severity: "error",
-          message: `Server wrote ${lines.length}${lines.length >= 50 ? "+" : ""} non-JSON-RPC line(s) to stdout, e.g. ${JSON.stringify(lines[0])}`,
-          evidence: { lines: lines.slice(0, 5) },
+          severity: corrupted.length > 0 ? "error" : "warn",
+          message:
+            corrupted.length > 0
+              ? `Log output on stdout corrupted ${corrupted.length} JSON-RPC message(s), e.g. ${JSON.stringify(corrupted[0])}; clients drop them and the request hangs.`
+              : `Server wrote ${count} non-JSON-RPC line(s) to stdout, e.g. ${JSON.stringify(lines[0])}. MCP SDK clients drop these lines (the v1 TypeScript SDK reports each as an error), and any log write without a trailing newline corrupts the next message.`,
+          evidence: { lines: (corrupted.length > 0 ? corrupted : lines).slice(0, 5) },
           affects: ["stdio"],
           fix: "Send logs to stderr (console.error / logging to sys.stderr). stdout is reserved for protocol messages.",
         },

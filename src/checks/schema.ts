@@ -202,6 +202,35 @@ export const schemaChecks = [
   }),
 
   defineCheck({
+    id: "SCHEMA_PROPERTY_NAME_REJECTED",
+    area: "schema",
+    description: "Top-level input property names match each client's rules",
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const rule = p.limits.inputPropertyNamePattern;
+        if (!rule) return [];
+        const pattern = new RegExp(rule.value);
+        return schemas(s, "inputSchema").flatMap(([t, schema]): Finding[] => {
+          const names = isObject(schema.properties) ? Object.keys(schema.properties) : [];
+          const bad = names.filter((n) => !pattern.test(n));
+          if (bad.length === 0) return [];
+          return [
+            {
+              checkId: "SCHEMA_PROPERTY_NAME_REJECTED",
+              severity: "error",
+              subject: toolName(t),
+              client: p.id,
+              source: rule.source,
+              message: `Property name(s) ${bad.map((b) => JSON.stringify(b)).join(", ")} don't match /${rule.value}/, so ${p.displayName} drops this tool${rule.note ? ` (${rule.note})` : ""}.`,
+              fix: "Rename arguments to 1-64 characters of letters, digits, _, - and .",
+            },
+          ];
+        });
+      }),
+  }),
+
+  defineCheck({
     id: "SCHEMA_PROPERTY_NO_TYPE",
     area: "schema",
     description: "Every input property declares a type",

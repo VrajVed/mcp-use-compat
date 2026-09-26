@@ -80,6 +80,16 @@ describe("schema checks", () => {
     assert.deepEqual(runCheck(check("SCHEMA_UNSUPPORTED_KEYWORD"), s, { profiles: [profile()] }), []);
   });
 
+  it("SCHEMA_PROPERTY_NAME_REJECTED is per client", () => {
+    const p = profile({ limits: { inputPropertyNamePattern: { value: "^[A-Za-z0-9_.-]{1,64}$", ...src } } });
+    assert.deepEqual(runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), snapshot(), { profiles: [p] }), []);
+    const s = withSchema({ type: "object", properties: { "user name": { type: "string" }, ok: { type: "string" } } });
+    const [f] = runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), s, { profiles: [p] });
+    assert.equal(f.severity, "error");
+    assert.match(f.message, /"user name"/);
+    assert.deepEqual(runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), s, { profiles: [profile()] }), []);
+  });
+
   it("SCHEMA_PROPERTY_NO_TYPE", () => {
     assert.deepEqual(runCheck(check("SCHEMA_PROPERTY_NO_TYPE"), snapshot()), []);
     assert.equal(

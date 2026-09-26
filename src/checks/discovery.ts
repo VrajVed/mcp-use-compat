@@ -14,10 +14,10 @@ function listChangedCheck(kind: "tools" | "resources" | "prompts", feature: Clie
       return connected(s) && isObject(cap) && cap.listChanged === true;
     },
     run: (s, { profiles }) =>
-      featureGap(profiles, feature, (p) => ({
+      featureGap(profiles, feature, (p, partial) => ({
         checkId: id,
         severity: "warn",
-        message: `Server declares ${kind}.listChanged, but ${p.displayName} does not refresh its ${kind} list during a session. If ${kind} change at runtime, users must reconnect to see them.`,
+        message: `Server declares ${kind}.listChanged, but ${p.displayName} ${partial ? "does not reliably refresh" : "does not refresh"} its ${kind} list during a session. If ${kind} change at runtime, users must reconnect to see them.`,
         fix: `Register all ${kind} at startup if you can; enable/disable them instead of adding new ones later.`,
       })),
   });
@@ -31,10 +31,10 @@ function unsupportedFeatureCheck(kind: ListKind & ("resources" | "prompts"), fea
     description: `Clients without ${kind} support are flagged when the server exposes ${kind}`,
     appliesTo: (s) => connected(s) && items(s, kind).length > 0,
     run: (s, { profiles }) =>
-      featureGap(profiles, feature, (p) => ({
+      featureGap(profiles, feature, (p, partial) => ({
         checkId: id,
         severity: "warn",
-        message: `Server exposes ${items(s, kind).length} ${kind}, but ${p.displayName} does not support MCP ${kind}. Anything only reachable through them is missing there.`,
+        message: `Server exposes ${items(s, kind).length} ${kind}, but ${p.displayName} ${partial ? "only partly supports" : "does not support"} MCP ${kind}. Anything only reachable through them may be missing there.`,
         fix:
           kind === "prompts"
             ? "Don't rely on prompts for core functionality; mention workflows in tool descriptions too."

@@ -28,25 +28,51 @@ describe("tool checks", () => {
     assert.equal(f.subject, "a");
   });
 
-  it("TOOL_NAME_REJECTED_BY_CLIENT", () => {
-    const p = profile({ limits: { toolNamePattern: { value: "^[a-zA-Z0-9_-]{1,64}$", ...src } } });
-    assert.deepEqual(runCheck(check("TOOL_NAME_REJECTED_BY_CLIENT"), withTools(goodTool("ok_name")), { profiles: [p] }), []);
-    const [f] = runCheck(check("TOOL_NAME_REJECTED_BY_CLIENT"), withTools(goodTool("files.read")), { profiles: [p] });
-    assert.equal(f.client, "test-client");
-    assert.equal(f.source, src.source);
+  it("TOOL_NAME_CLIENT_CHARS maps reject/replace/unknown to severities", () => {
+    const chars = (onInvalid: "reject" | "replace" | "unknown") =>
+      profile({ id: onInvalid, limits: { toolNameChars: { value: { allowed: "A-Za-z0-9_-", onInvalid }, ...src } } });
+    const profiles = [chars("reject"), chars("replace"), chars("unknown")];
+    assert.deepEqual(runCheck(check("TOOL_NAME_CLIENT_CHARS"), withTools(goodTool("ok_name-1")), { profiles }), []);
+    const findings = runCheck(check("TOOL_NAME_CLIENT_CHARS"), withTools(goodTool("files.read")), { profiles });
+    assert.deepEqual(
+      findings.map((f) => [f.client, f.severity]),
+      [
+        ["reject", "error"],
+        ["replace", "warn"],
+        ["unknown", "warn"],
+      ]
+    );
+    assert.match(findings[1].message, /"files_read"/);
   });
 
   it("TOOL_NAME_TOO_LONG uses the prefix and server name", () => {
     const p = profile({
       limits: {
-        maxToolNameLength: { value: 30, ...src },
-        toolNamePrefix: { value: "mcp__{server}__", ...src },
+        maxToolNameLength: { value: { max: 30, onExceed: "truncate" }, ...src },
+        toolNamePrefix: { value: { format: "mcp__{server}__" }, ...src },
       },
     });
-    // "mcp__test-server__" is 18 chars; 12-char name fits, 13 does not.
+    // "mcp__test-server__" is 18 chars; a 12-char name fits, 13 does not.
     assert.deepEqual(runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("a".repeat(12))), { profiles: [p] }), []);
     const [f] = runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("a".repeat(13))), { profiles: [p] });
-    assert.match(f.message, /31 characters/);
+    assert.equal(f.severity, "warn");
+    assert.match(f.message, /is 31 characters/);
+    assert.match(f.message, /truncates it to/);
+  });
+
+  it("TOOL_NAME_TOO_LONG applies lowercase and max prefix length", () => {
+    const p = profile({
+      limits: {
+        maxToolNameLength: { value: { max: 20, onExceed: "reject" }, ...src },
+        toolNamePrefix: { value: { format: "mcp_{server}_", maxLength: 8, lowercase: true }, ...src },
+      },
+    });
+    // Prefix "mcp_test" (8) + 12 = 20 fits; 13 does not, and reject means error.
+    assert.deepEqual(runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("a".repeat(12))), { profiles: [p] }), []);
+    assert.equal(
+      runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("a".repeat(13))), { profiles: [p] })[0].severity,
+      "error"
+    );
   });
 
   it("TOOL_NAME_TOO_LONG is silent without a known limit", () => {
@@ -54,6 +80,36 @@ describe("tool checks", () => {
       runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("a".repeat(100))), { profiles: [profile()] }),
       []
     );
+  });
+
+  it("TOOL_NAME_CLIENT_COLLISION after replacement and truncation", () => {
+    const replacing = profile({
+      id: "replacing",
+      limits: { toolNameChars: { value: { allowed: "A-Za-z0-9_-", onInvalid: "replace" }, ...src } },
+    });
+    const [f] = runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("files.read"), goodTool("files_read")), {
+      profiles: [replacing],
+    });
+    assert.equal(f.severity, "error");
+    assert.equal(f.client, "replacing");
+    assert.match(f.message, /"files\.read" and "files_read" both become "files_read"/);
+
+    const truncating = profile({ limits: { maxToolNameLength: { value: { max: 10, onExceed: "truncate" }, ...src } } });
+    assert.equal(
+      runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("search_docs_v1"), goodTool("search_docs_v2")), {
+        profiles: [truncating],
+      }).length,
+      1
+    );
+  });
+
+  it("TOOL_NAME_CLIENT_COLLISION ignores hash-suffixed truncation and unknown handling", () => {
+    const tools = withTools(goodTool("search_docs_v1"), goodTool("search_docs_v2"), goodTool("a.b"), goodTool("a_b"));
+    const profiles = [
+      profile({ limits: { maxToolNameLength: { value: { max: 10, onExceed: "truncateWithHash" }, ...src } } }),
+      profile({ limits: { toolNameChars: { value: { allowed: "A-Za-z0-9_-", onInvalid: "unknown" }, ...src } } }),
+    ];
+    assert.deepEqual(runCheck(check("TOOL_NAME_CLIENT_COLLISION"), tools, { profiles }), []);
   });
 
   it("TOOL_COUNT_OVER_LIMIT", () => {
@@ -84,13 +140,36 @@ describe("tool checks", () => {
     assert.match(findings[0].message, /null/);
   });
 
-  it("TOOL_DESCRIPTION_SHORT and TOOL_DESCRIPTION_LONG", () => {
+  it("TOOL_DESCRIPTION_SHORT", () => {
     assert.deepEqual(runCheck(check("TOOL_DESCRIPTION_SHORT"), snapshot()), []);
-    assert.deepEqual(runCheck(check("TOOL_DESCRIPTION_LONG"), snapshot()), []);
     assert.equal(runCheck(check("TOOL_DESCRIPTION_SHORT"), withTools({ ...goodTool(), description: "Weather" })).length, 1);
-    assert.equal(
-      runCheck(check("TOOL_DESCRIPTION_LONG"), withTools({ ...goodTool(), description: "x".repeat(1025) })).length,
-      1
+  });
+
+  it("TOOL_DESCRIPTION_TRUNCATED covers tools and server instructions", () => {
+    const p = profile({ limits: { maxDescriptionLength: { value: 50, ...src } } });
+    assert.deepEqual(runCheck(check("TOOL_DESCRIPTION_TRUNCATED"), snapshot(), { profiles: [p] }), []);
+    const s = snapshot({
+      initialize: { instructions: "i".repeat(51) },
+      lists: { tools: list([{ ...goodTool(), description: "d".repeat(51) }]) },
+    });
+    assert.deepEqual(
+      runCheck(check("TOOL_DESCRIPTION_TRUNCATED"), s, { profiles: [p] }).map((f) => f.subject),
+      ["get_weather", "(server instructions)"]
+    );
+  });
+
+  it("TOOL_STRUCTURED_OUTPUT_HANDLING", () => {
+    const handling = (value: "replacesText" | "alongsideText" | "fallbackOnly") =>
+      profile({ id: value, limits: { structuredContent: { value, ...src } } });
+    const profiles = [handling("replacesText"), handling("alongsideText"), handling("fallbackOnly")];
+    assert.equal(check("TOOL_STRUCTURED_OUTPUT_HANDLING").appliesTo(snapshot()), false);
+    const s = withTools({ ...goodTool(), outputSchema: { type: "object" } });
+    assert.deepEqual(
+      runCheck(check("TOOL_STRUCTURED_OUTPUT_HANDLING"), s, { profiles }).map((f) => [f.client, f.severity]),
+      [
+        ["replacesText", "info"],
+        ["fallbackOnly", "info"],
+      ]
     );
   });
 
