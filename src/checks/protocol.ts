@@ -41,7 +41,7 @@ export const protocolChecks = [
         {
           checkId: "PROTOCOL_VERSION_OLD",
           severity: v.startsWith("2024-") ? "warn" : "info",
-          message: `Server negotiated ${v}; latest is ${LATEST_PROTOCOL_VERSION}. Newer features (e.g. structured output, tool annotations) may be unavailable.`,
+          message: `Server negotiated ${v}; latest is ${LATEST_PROTOCOL_VERSION}. Features added in later spec revisions are unavailable to clients.`,
           evidence: { negotiated: v, latest: LATEST_PROTOCOL_VERSION },
           fix: "Upgrade your MCP SDK.",
         },
