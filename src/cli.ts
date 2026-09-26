@@ -14,7 +14,6 @@ export interface RunOptions {
   failOn: string;
   timeoutMs: number;
   authProbe: boolean;
-  probeCalls: boolean;
   listChecks: boolean;
   listClients: boolean;
 }
@@ -40,7 +39,6 @@ export function parseArgs(argv: string[], warn: (msg: string) => void = console.
     .option("--header <Name:Value>", "HTTP header for --url (repeatable)", collectKeyValue(":"), {})
     .option("--cwd <dir>", "working directory for the stdio server", process.cwd())
     .option("--no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)")
-    .option("--probe-calls", "call read-only tools with minimal arguments", false)
     .option("--list-checks", "print all checks and exit", false)
     .option("--list-clients", "print client profiles and exit", false)
     .exitOverride()
@@ -59,7 +57,6 @@ export function parseArgs(argv: string[], warn: (msg: string) => void = console.
     failOn: opts.failOn as string,
     timeoutMs: opts.timeout as number,
     authProbe: opts.authProbe as boolean,
-    probeCalls: opts.probeCalls as boolean,
     listChecks: opts.listChecks as boolean,
     listClients: opts.listClients as boolean,
   };

@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import { describe, it } from "node:test";
 import { defineCheck, type Finding } from "../src/checks/types.js";
 import { evaluate } from "../src/evaluate.js";
@@ -6,7 +10,9 @@ import { cell } from "../src/reporters/escape.js";
 import { githubReporter } from "../src/reporters/github.js";
 import { jsonReporter } from "../src/reporters/json.js";
 import { markdownReporter } from "../src/reporters/markdown.js";
-import { profile, snapshot, src } from "./checks/builders.js";
+import { ALL_CHECKS } from "../src/checks/index.js";
+import { ALL_PROFILES } from "../src/profiles/index.js";
+import { goodTool, list, profile, snapshot, src } from "./checks/builders.js";
 
 const findings: Finding[] = [
   { checkId: "GEN", severity: "error", message: "bad | pipe\nnewline", subject: "tool_a", fix: "fix it" },
@@ -55,6 +61,23 @@ describe("markdown reporter", () => {
 });
 
 describe("json reporter", () => {
+  it("matches the published schema", () => {
+    const schema = JSON.parse(readFileSync(resolve(import.meta.dirname, "../schema/report.schema.json"), "utf8"));
+    const ajv = new Ajv2020({ allErrors: true });
+    addFormats.default(ajv);
+    const validate = ajv.compile(schema);
+    const real = evaluate(
+      snapshot({
+        lists: { tools: list([{ ...goodTool("files.read"), description: null }, goodTool("files_read")]) },
+        io: { stdoutNonJsonLines: ["log"], stderrTail: [] },
+      }),
+      ALL_CHECKS,
+      ALL_PROFILES
+    );
+    assert.ok(real.findings.length > 3);
+    assert.ok(validate(JSON.parse(jsonReporter(real))), JSON.stringify(validate.errors));
+  });
+
   it("round-trips the report", () => {
     const parsed = JSON.parse(jsonReporter(report));
     assert.equal(parsed.schemaVersion, 1);

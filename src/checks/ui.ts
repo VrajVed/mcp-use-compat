@@ -120,10 +120,12 @@ export const uiChecks = [
     description: "Clients that don't render MCP Apps are flagged when tools rely on UI",
     appliesTo: (s) => connected(s) && uiTools(s).length > 0,
     run: (s, { profiles }) =>
-      featureGap(profiles, "uiResources", (p) => ({
+      featureGap(profiles, "uiResources", (p, partial) => ({
         checkId: "UI_UNSUPPORTED",
         severity: "warn",
-        message: `${uiTools(s).length} tool(s) return UI, but ${p.displayName} doesn't render MCP Apps; users only get the text content.`,
+        message: partial
+          ? `${uiTools(s).length} tool(s) return UI, but ${p.displayName} only partly renders MCP Apps; some users only get the text content.`
+          : `${uiTools(s).length} tool(s) return UI, but ${p.displayName} doesn't render MCP Apps; users only get the text content.`,
         fix: "Make each UI tool's text content useful on its own.",
       })),
   }),

@@ -1,7 +1,7 @@
 import { Ajv } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { RawItem, ServerSnapshot } from "../snapshot.js";
-import { connected, isObject, items, str } from "./util.js";
+import { connected, isObject, items, str, withNote } from "./util.js";
 import { defineCheck, type Finding } from "./types.js";
 
 const MAX_DEPTH = 5;
@@ -193,7 +193,7 @@ export const schemaChecks = [
               subject: toolName(t),
               client: p.id,
               source: rule.source,
-              message: `inputSchema uses ${bad.join(", ")}, which ${p.displayName} does not support${rule.note ? ` (${rule.note})` : ""}.`,
+              message: withNote(`inputSchema uses ${bad.join(", ")}, which ${p.displayName} does not support.`, rule.note),
               fix: "Inline definitions and simplify the schema for maximum compatibility.",
             },
           ];
@@ -218,11 +218,14 @@ export const schemaChecks = [
           return [
             {
               checkId: "SCHEMA_PROPERTY_NAME_REJECTED",
-              severity: "error",
+              severity: "warn",
               subject: toolName(t),
               client: p.id,
               source: rule.source,
-              message: `Property name(s) ${bad.map((b) => JSON.stringify(b)).join(", ")} don't match /${rule.value}/, so ${p.displayName} drops this tool${rule.note ? ` (${rule.note})` : ""}.`,
+              message: withNote(
+                `Property name(s) ${bad.map((b) => JSON.stringify(b)).join(", ")} don't match /${rule.value}/, so ${p.displayName} may drop this tool.`,
+                rule.note
+              ),
               fix: "Rename arguments to 1-64 characters of letters, digits, _, - and .",
             },
           ];

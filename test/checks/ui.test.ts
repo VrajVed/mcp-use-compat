@@ -139,7 +139,7 @@ describe("ui checks", () => {
       ]
     );
     assert.match(findings[0].message, /^1 tool\(s\) return UI, but No UI/);
-    assert.match(findings[1].message, /\(flaky\)$/);
+    assert.match(findings[1].message, /only partly renders MCP Apps.*Flaky\.$/);
     assert.equal(findings[0].source, src.source);
     assert.deepEqual(runCheck(c, s, { profiles: [profile({ supports: { uiResources: yes } })] }), []);
   });

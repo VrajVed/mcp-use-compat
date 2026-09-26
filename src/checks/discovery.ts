@@ -8,15 +8,16 @@ function listChangedCheck(kind: "tools" | "resources" | "prompts", feature: Clie
   return defineCheck({
     id,
     area: "discovery",
-    description: `Clients that ignore ${kind}/list_changed are flagged when the server declares it`,
+    description: `Notes clients that ignore ${kind}/list_changed when the server declares it`,
     appliesTo: (s) => {
       const cap = s.initialize?.capabilities?.[kind];
       return connected(s) && isObject(cap) && cap.listChanged === true;
     },
     run: (s, { profiles }) =>
+      // INFO, not WARN: declaring listChanged (the SDK default) doesn't mean the list ever changes.
       featureGap(profiles, feature, (p, partial) => ({
         checkId: id,
-        severity: "warn",
+        severity: "info",
         message: `Server declares ${kind}.listChanged, but ${p.displayName} ${partial ? "does not reliably refresh" : "does not refresh"} its ${kind} list during a session. If ${kind} change at runtime, users must reconnect to see them.`,
         fix: `Register all ${kind} at startup if you can; enable/disable them instead of adding new ones later.`,
       })),

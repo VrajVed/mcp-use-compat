@@ -16,6 +16,13 @@ export function declared(s: ServerSnapshot, capability: string): boolean {
   return caps[capability] !== undefined && caps[capability] !== null;
 }
 
+/** Appends a sourced note as its own sentence: "Message. Note." */
+export function withNote(message: string, note: string | undefined): string {
+  if (!note) return message;
+  const end = (t: string) => (/[.!?)]$/.test(t) ? t : `${t}.`);
+  return `${end(message)} ${end(note.charAt(0).toUpperCase() + note.slice(1))}`;
+}
+
 export function str(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
@@ -42,7 +49,6 @@ export function featureGap(
     const support = p.supports[feature];
     if (!support || support.value === true) return [];
     const finding = make(p, support.value === "partial");
-    const message = support.note ? `${finding.message} (${support.note})` : finding.message;
-    return [{ ...finding, message, client: p.id, source: support.source }];
+    return [{ ...finding, message: withNote(finding.message, support.note), client: p.id, source: support.source }];
   });
 }

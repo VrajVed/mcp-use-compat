@@ -8,11 +8,12 @@
     "mcp-use-compat": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -p .",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p .",
     "dev": "tsc -p . --watch",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "readme": "tsx scripts/readme.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",

@@ -85,7 +85,7 @@ describe("schema checks", () => {
     assert.deepEqual(runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), snapshot(), { profiles: [p] }), []);
     const s = withSchema({ type: "object", properties: { "user name": { type: "string" }, ok: { type: "string" } } });
     const [f] = runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), s, { profiles: [p] });
-    assert.equal(f.severity, "error");
+    assert.equal(f.severity, "warn");
     assert.match(f.message, /"user name"/);
     assert.deepEqual(runCheck(check("SCHEMA_PROPERTY_NAME_REJECTED"), s, { profiles: [profile()] }), []);
   });

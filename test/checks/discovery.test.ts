@@ -22,7 +22,7 @@ describe("discovery checks", () => {
     const findings = runCheck(check("DISCOVERY_TOOLS_LIST_CHANGED"), s, { profiles });
     assert.deepEqual(
       findings.map((f) => [f.client, f.severity]),
-      [["ignores", "warn"]]
+      [["ignores", "info"]]
     );
     assert.equal(findings[0].source, src.source);
   });
@@ -32,7 +32,7 @@ describe("discovery checks", () => {
     const partial = profile({ supports: { toolsListChanged: { value: "partial", note: "regressed in 3.12", ...src } } });
     const [f] = runCheck(check("DISCOVERY_TOOLS_LIST_CHANGED"), s, { profiles: [partial] });
     assert.match(f.message, /does not reliably refresh/);
-    assert.match(f.message, /regressed in 3\.12/);
+    assert.match(f.message, /Regressed in 3\.12\.$/);
   });
 
   it("DISCOVERY_RESOURCES_LIST_CHANGED and DISCOVERY_PROMPTS_LIST_CHANGED", () => {

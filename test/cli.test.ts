@@ -39,7 +39,6 @@ describe("parseArgs", () => {
     assert.equal(o.format, "md");
     assert.equal(o.failOn, "error");
     assert.equal(o.timeoutMs, 10000);
-    assert.equal(o.probeCalls, false);
     assert.equal(o.clients, undefined);
   });
 

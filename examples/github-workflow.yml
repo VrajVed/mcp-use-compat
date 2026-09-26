@@ -1,0 +1,34 @@
+# Copy to .github/workflows/mcp-compat.yml in your MCP server's repository.
+name: MCP compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci && npm run build
+
+      # --format github annotates the PR and writes a summary to the job page.
+      # Adjust the command after -- to however your server starts.
+      - name: Check MCP client compatibility
+        run: npx mcp-use-compat@0.2 --format github -- node dist/index.js
+
+      - name: Keep a markdown report
+        if: always()
+        run: npx mcp-use-compat@0.2 --fail-on none --out mcp-compat-report.md -- node dist/index.js
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-compat-report
+          path: mcp-compat-report.md

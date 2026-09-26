@@ -1,6 +1,6 @@
 import type { ClientProfile } from "../profiles/types.js";
 import type { RawItem, ServerSnapshot } from "../snapshot.js";
-import { connected, declared, isObject, items, str } from "./util.js";
+import { connected, declared, isObject, items, str, withNote } from "./util.js";
 import { defineCheck, type Finding } from "./types.js";
 
 /** Tool name format from the MCP spec (SEP-986), as enforced by the SDK. */
@@ -124,7 +124,7 @@ export const toolChecks = [
                   ? `${p.displayName} rejects tool names with characters outside [${rule.value.allowed}].`
                   : onInvalid === "replace"
                     ? `${p.displayName} renames it to "${renamed}" (only [${rule.value.allowed}] allowed).`
-                    : `${p.displayName} only accepts [${rule.value.allowed}]${rule.note ? `; ${rule.note}` : "."}`,
+                    : withNote(`${p.displayName} only accepts [${rule.value.allowed}].`, rule.note),
               fix: "Use only letters, digits, underscores and dashes in tool names.",
             };
           });
@@ -223,7 +223,7 @@ export const toolChecks = [
             severity: "warn",
             client: p.id,
             source: limit.source,
-            message: `Server exposes ${count} tools; ${p.displayName} uses at most ${limit.value}${limit.note ? ` (${limit.note})` : ""}.`,
+            message: withNote(`Server exposes ${count} tools; ${p.displayName} uses at most ${limit.value}.`, limit.note),
             fix: "Consolidate tools, or split the server so users can enable only what they need.",
           },
         ];
