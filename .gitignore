@@ -4,3 +4,6 @@ dist/
 .DS_Store
 .env
 compat-report.md
+
+# Local planning notes
+plan.md
