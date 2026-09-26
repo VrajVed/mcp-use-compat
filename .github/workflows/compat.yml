@@ -1,0 +1,33 @@
+name: MCP Compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install mcp-use-compat
+        run: npm install -g mcp-use-compat
+
+      - name: Build server
+        run: npm ci && npm run build
+
+      - name: Run compatibility check
+        run: mcp-use-compat ./dist/server.js --clients=claude,chatgpt,cursor --fail-on=auth,ui
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compat-report
+          path: compat-report.md

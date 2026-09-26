@@ -1,0 +1,34 @@
+{
+  "name": "mcp-use-compat",
+  "version": "0.1.0",
+  "description": "Test MCP servers against simulated client environments",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "mcp-use-compat": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/**/*.test.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "testing",
+    "compatibility"
+  ],
+  "license": "MIT"
+}
