@@ -1,14 +1,14 @@
 ---
 name: Client fact is wrong or missing
-about: A client behaves differently from what mcp-use-compat reports
+about: A client behaves differently from what mcpkit reports
 labels: client-facts
 ---
 
 **Client and version**
 
-**What mcp-use-compat says**
+**What mcpkit says**
 
-(The check id, and the fact from `mcp-use-compat explain <CHECK_ID>` or `list-clients`.)
+(The check id, and the fact from `mcpkit explain <CHECK_ID>` or `list-clients`.)
 
 **What the client actually does**
 

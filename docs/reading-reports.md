@@ -16,7 +16,7 @@ A finding that only matters for a feature a client doesn't use is shown as INFO 
 
 ## Areas
 
-Checks are grouped by area: `transport`, `protocol`, `tools`, `schema`, `discovery`, `resources`, `ui` (MCP Apps), `auth`, `calls` and `sdk`. Run `mcp-use-compat list-checks` for the full list, or `mcp-use-compat explain <CHECK_ID>` for one check's rationale, sources and the client facts it uses.
+Checks are grouped by area: `transport`, `protocol`, `tools`, `schema`, `discovery`, `resources`, `ui` (MCP Apps), `auth`, `calls` and `sdk`. Run `mcpkit list-checks` for the full list, or `mcpkit explain <CHECK_ID>` for one check's rationale, sources and the client facts it uses.
 
 ## Controlling the exit code
 

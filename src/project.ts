@@ -246,7 +246,7 @@ export async function lookupLatest(sdks: DetectedSdk[], timeoutMs = 4000): Promi
 
 async function latestVersion(ecosystem: Ecosystem, name: string, timeoutMs: number): Promise<string | undefined> {
   const get = async (url: string) => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { "user-agent": "mcp-use-compat" } });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { "user-agent": "mcpkit" } });
     return res.ok ? ((await res.json()) as Record<string, unknown>) : undefined;
   };
   switch (ecosystem) {

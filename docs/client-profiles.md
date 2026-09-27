@@ -10,7 +10,7 @@ In order of preference:
 2. The client's source code, linked at a specific commit.
 3. A maintainer statement in an official repository or forum.
 
-Every fact records the URL and the date it was checked. `mcp-use-compat list-clients` shows how fresh each profile is, and the test suite fails when a fact is older than 180 days.
+Every fact records the URL and the date it was checked. `mcpkit list-clients` shows how fresh each profile is, and the test suite fails when a fact is older than 180 days.
 
 ## Fields
 

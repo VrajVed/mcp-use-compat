@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in mcp-use-compat doesn't work as expected
+about: Something in mcpkit doesn't work as expected
 labels: bug
 ---
 
@@ -13,13 +13,13 @@ labels: bug
 The command you ran (redact secrets):
 
 ```bash
-npx mcp-use-compat ...
+npx mcpkit ...
 ```
 
 If you can, attach a snapshot (`--save-snapshot snap.json`) so the problem can be reproduced without your server.
 
 **Versions**
 
-- mcp-use-compat:
+- mcpkit:
 - Node.js:
 - OS:

@@ -27,7 +27,7 @@ export async function probeHttpAuth(
       params: {
         protocolVersion: LATEST_PROTOCOL_VERSION,
         capabilities: {},
-        clientInfo: { name: "mcp-use-compat-auth-probe", version: VERSION },
+        clientInfo: { name: "mcpkit-auth-probe", version: VERSION },
       },
     }),
   });

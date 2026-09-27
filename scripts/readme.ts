@@ -50,7 +50,7 @@ export function clientsSection(): string {
     divider,
     ...rows,
     "",
-    `✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified ${dates[0]}${dates.at(-1) !== dates[0] ? ` to ${dates.at(-1)}` : ""}; run \`mcp-use-compat list-clients\` for details.`,
+    `✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified ${dates[0]}${dates.at(-1) !== dates[0] ? ` to ${dates.at(-1)}` : ""}; run \`mcpkit list-clients\` for details.`,
   ].join("\n");
 }
 

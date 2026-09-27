@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { connect } from "../src/connect/index.js";
-import { CredentialStore, describeCredentials, oauthLogin, StoredOAuthProvider } from "../src/oauth.js";
+import { CredentialStore, defaultStorePath, describeCredentials, oauthLogin, StoredOAuthProvider } from "../src/oauth.js";
 import { startHttpFixture } from "./helpers.js";
 
 const tempStore = () => new CredentialStore(join(mkdtempSync(join(tmpdir(), "mcp-oauth-")), "oauth.json"));
@@ -107,3 +107,23 @@ describe("oauth login", () => {
     }
   });
 });
+
+describe("credential store location", () => {
+  it("moves credentials saved under the old mcp-use-compat name", () => {
+    const base = mkdtempSync(join(tmpdir(), "mcp-xdg-"));
+    mkdirSync(join(base, "mcp-use-compat"));
+    writeFileSync(join(base, "mcp-use-compat", "oauth.json"), '{"https://x.example/mcp":{}}');
+    const previous = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = base;
+    try {
+      const path = defaultStorePath();
+      assert.equal(path, join(base, "mcpkit", "oauth.json"));
+      assert.equal(readFileSync(path, "utf8"), '{"https://x.example/mcp":{}}');
+      assert.equal(statSync(path).mode & 0o777, 0o600);
+    } finally {
+      if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previous;
+    }
+  });
+});
+

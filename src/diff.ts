@@ -227,7 +227,7 @@ export function loadDiffInput(path: string): ServerSnapshot {
   if (data.schemaVersion !== undefined) {
     throw new UsageError(`${path} is a report, not a snapshot. Create snapshots with: check --save-snapshot <file> ...`);
   }
-  throw new UsageError(`${path} is not an mcp-use-compat snapshot.`);
+  throw new UsageError(`${path} is not an mcpkit snapshot.`);
 }
 
 export function buildDiff(beforePath: string, afterPath: string): DiffReport {

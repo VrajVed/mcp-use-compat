@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -23,7 +23,7 @@ export interface StoredCredentials {
   discoveryState?: OAuthDiscoveryState;
 }
 
-/** Credentials per MCP server URL in ~/.config/mcp-use-compat/oauth.json (mode 0600). */
+/** Credentials per MCP server URL in ~/.config/mcpkit/oauth.json (mode 0600). */
 export class CredentialStore {
   constructor(readonly path: string = defaultStorePath()) {}
 
@@ -53,7 +53,15 @@ export class CredentialStore {
 
 export function defaultStorePath(): string {
   const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(base, TOOL_NAME, "oauth.json");
+  const path = join(base, TOOL_NAME, "oauth.json");
+  // Carry over credentials saved before the rename from mcp-use-compat.
+  const legacy = join(base, "mcp-use-compat", "oauth.json");
+  if (!existsSync(path) && existsSync(legacy)) {
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    copyFileSync(legacy, path);
+    chmodSync(path, 0o600);
+  }
+  return path;
 }
 
 export interface ProviderOptions {

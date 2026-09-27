@@ -5,7 +5,7 @@ By default the tool never calls your tools. Two options change that.
 ## Probe read-only tools
 
 ```bash
-npx mcp-use-compat --probe-calls -- node dist/server.js
+npx mcpkit --probe-calls -- node dist/server.js
 ```
 
 This calls every tool that declares `readOnlyHint: true`, up to 20, and skips any that:
@@ -20,8 +20,8 @@ Annotations are hints from the server, so only probe servers you trust.
 ## Call one tool
 
 ```bash
-npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
-npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' --format json --url https://example.com/mcp
+npx mcpkit call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
+npx mcpkit call get_quote --args '{"symbol":"INFY"}' --format json --url https://example.com/mcp
 ```
 
 `call` runs exactly the tool you name, whatever its annotations, and prints the result and any problems. It exits `1` if the call failed or the result is invalid.

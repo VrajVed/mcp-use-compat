@@ -94,7 +94,7 @@ type Warn = (msg: string) => void;
 export function parseCommandLine(argv: string[], warn: Warn = console.error): Invocation {
   let result: Invocation | undefined;
   const program = new Command()
-    .name("mcp-use-compat")
+    .name("mcpkit")
     .description("Check an MCP server for issues that break specific MCP clients")
     .version(VERSION)
     .enablePositionalOptions()
@@ -104,7 +104,7 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
   const check = program
     .command("check", { isDefault: true })
     .description("connect to a server and report compatibility issues per client (default)")
-    .usage("[options] -- <command> [args...]\n       mcp-use-compat check [options] --url <url>")
+    .usage("[options] -- <command> [args...]\n       mcpkit check [options] --url <url>")
     .argument("[command...]", "stdio server command, after --")
     .passThroughOptions();
   addTargetOptions(check)

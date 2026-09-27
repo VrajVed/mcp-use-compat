@@ -21,14 +21,14 @@ jobs:
       # --format github annotates the PR and writes a summary to the job page.
       # Adjust the command after -- to however your server starts.
       - name: Check MCP client compatibility
-        run: npx mcp-use-compat@0.3 --format github -- node dist/index.js
+        run: npx mcpkit@0.4 --format github -- node dist/index.js
 
       - name: Keep a markdown report
         if: always()
-        run: npx mcp-use-compat@0.3 --fail-on none --out mcp-compat-report.md -- node dist/index.js
+        run: npx mcpkit@0.4 --fail-on none --out mcpkit-report.md -- node dist/index.js
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mcp-compat-report
-          path: mcp-compat-report.md
+          name: mcpkit-report
+          path: mcpkit-report.md

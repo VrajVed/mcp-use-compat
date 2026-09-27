@@ -27,8 +27,8 @@ export function upgradeHint(s: ServerSnapshot, wantModern = false): string {
     return "Your MCP SDK is already the latest release; check whether the server pins an older protocolVersion.";
   }
   return s.target.kind === "stdio"
-    ? "Upgrade your MCP SDK. Run `mcp-use-compat upgrade -- <your server command>` in the server's project for the exact command."
-    : "Upgrade the server's MCP SDK. Run `mcp-use-compat upgrade -- <server command>` in its project for the exact command.";
+    ? "Upgrade your MCP SDK. Run `mcpkit upgrade -- <your server command>` in the server's project for the exact command."
+    : "Upgrade the server's MCP SDK. Run `mcpkit upgrade -- <server command>` in its project for the exact command.";
 }
 
 export const sdkChecks = [

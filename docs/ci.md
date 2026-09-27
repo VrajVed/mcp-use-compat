@@ -6,7 +6,7 @@ Copy [`examples/github-workflow.yml`](../examples/github-workflow.yml) into `.gi
 
 ```yaml
 - name: Check MCP client compatibility
-  run: npx mcp-use-compat@0.3 --format github -- node dist/index.js
+  run: npx mcpkit@0.4 --format github -- node dist/index.js
 ```
 
 `--format github` turns findings into annotations on the pull request and writes the Markdown report to the job summary.
@@ -14,10 +14,10 @@ Copy [`examples/github-workflow.yml`](../examples/github-workflow.yml) into `.gi
 ## Choosing what fails the build
 
 ```bash
-npx mcp-use-compat --fail-on error -- node dist/index.js    # default
-npx mcp-use-compat --fail-on warn -- node dist/index.js     # stricter
-npx mcp-use-compat --fail-on TOOL_*,SCHEMA_* -- node dist/index.js
-npx mcp-use-compat --clients claude-desktop,chatgpt -- node dist/index.js   # only the clients you ship to
+npx mcpkit --fail-on error -- node dist/index.js    # default
+npx mcpkit --fail-on warn -- node dist/index.js     # stricter
+npx mcpkit --fail-on TOOL_*,SCHEMA_* -- node dist/index.js
+npx mcpkit --clients claude-desktop,chatgpt -- node dist/index.js   # only the clients you ship to
 ```
 
 Start with the default and the clients you support, then tighten.
@@ -25,12 +25,12 @@ Start with the default and the clients you support, then tighten.
 ## Keeping a report as an artifact
 
 ```yaml
-- run: npx mcp-use-compat@0.3 --fail-on none --out mcp-compat-report.md -- node dist/index.js
+- run: npx mcpkit@0.4 --fail-on none --out mcpkit-report.md -- node dist/index.js
 - uses: actions/upload-artifact@v4
   if: always()
   with:
-    name: mcp-compat-report
-    path: mcp-compat-report.md
+    name: mcpkit-report
+    path: mcpkit-report.md
 ```
 
 ## Blocking breaking changes
@@ -38,8 +38,8 @@ Start with the default and the clients you support, then tighten.
 Save a snapshot from the main branch and compare it with the pull request. See [Comparing releases](snapshots-and-diff.md):
 
 ```bash
-npx mcp-use-compat --fail-on none --save-snapshot after.json -- node dist/index.js
-npx mcp-use-compat diff baseline.json after.json --format github
+npx mcpkit --fail-on none --save-snapshot after.json -- node dist/index.js
+npx mcpkit diff baseline.json after.json --format github
 ```
 
 ## Other CI systems

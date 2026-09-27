@@ -40,7 +40,7 @@ describe("SDK checks", () => {
     const s = withSdk({ installed: "2.6.0", latest: "2.7.0" }, "2025-03-26");
     const [f] = runCheck(byId(protocolChecks, "PROTOCOL_VERSION_OLD"), s);
     assert.match(f.fix ?? "", /Run: npm install mcp-use@2\.7\.0/);
-    assert.match(upgradeHint(snapshot()), /mcp-use-compat upgrade/);
+    assert.match(upgradeHint(snapshot()), /mcpkit upgrade/);
     assert.match(upgradeHint(withSdk({ installed: "2.7.0", latest: "2.7.0" })), /already the latest/);
   });
 });

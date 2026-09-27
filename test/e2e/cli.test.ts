@@ -77,7 +77,7 @@ describe("cli end to end", () => {
   });
 
   it("saves a snapshot and re-checks it offline with the same result", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "mcp-use-compat-"));
+    const dir = mkdtempSync(join(tmpdir(), "mcpkit-"));
     const file = join(dir, "snap.json");
     const live = await json("--save-snapshot", file, "--", TSX, fixturePath("bad-tools"));
     const offline = await json("--from-snapshot", file);

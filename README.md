@@ -1,11 +1,13 @@
-# mcp-use-compat
+# mcpkit
+
+_Formerly published on npm as `mcp-use-compat`._
 
 Find the problems that break an MCP server in specific MCP clients, before your users do.
 
-MCP is one protocol, but every client reads it differently: Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, OpenCode, Codex, Gemini CLI, Cline, Goose, Continue and Windsurf each rename, truncate, validate, cache and render things their own way. `mcp-use-compat` connects to your server, records what it actually exposes, and checks it against sourced facts about each client. Every client-specific result links to where the fact comes from (docs, pinned client source, or maintainer statements), so a report tells you what breaks, where, and how we know.
+MCP is one protocol, but every client reads it differently: Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, OpenCode, Codex, Gemini CLI, Cline, Goose, Continue and Windsurf each rename, truncate, validate, cache and render things their own way. `mcpkit` connects to your server, records what it actually exposes, and checks it against sourced facts about each client. Every client-specific result links to where the fact comes from (docs, pinned client source, or maintainer statements), so a report tells you what breaks, where, and how we know.
 
 ```bash
-npx mcp-use-compat -- node dist/server.js
+npx mcpkit -- node dist/server.js
 ```
 
 ## Installation
@@ -13,9 +15,9 @@ npx mcp-use-compat -- node dist/server.js
 Requires Node.js 20 or newer. Your server can be written in any language.
 
 ```bash
-npx mcp-use-compat --help              # run without installing
-npm install -g mcp-use-compat          # install the CLI globally
-npm install --save-dev mcp-use-compat  # add it to a project, e.g. for CI
+npx mcpkit --help              # run without installing
+npm install -g mcpkit          # install the CLI globally
+npm install --save-dev mcpkit  # add it to a project, e.g. for CI
 ```
 
 To try the latest code from GitHub: `npm install -g github:VrajVed/mcpkit`.
@@ -24,14 +26,14 @@ To try the latest code from GitHub: `npm install -g github:VrajVed/mcpkit`.
 
 ```bash
 # A local server: put its start command after --
-npx mcp-use-compat -- node dist/server.js
-npx mcp-use-compat -- uv run server.py
+npx mcpkit -- node dist/server.js
+npx mcpkit -- uv run server.py
 
 # A remote server
-npx mcp-use-compat --url https://example.com/mcp
+npx mcpkit --url https://example.com/mcp
 
 # Is its MCP SDK up to date?
-npx mcp-use-compat upgrade -- node dist/server.js
+npx mcpkit upgrade -- node dist/server.js
 ```
 
 You get a report per client, with a fix for every problem, and an exit code for CI. New here? Start with the [getting started guide](docs/getting-started.md).
@@ -78,23 +80,23 @@ Real examples:
 
 ```bash
 # stdio: pass the full command after --
-npx mcp-use-compat -- node dist/server.js
-npx mcp-use-compat -- uv run server.py
-npx mcp-use-compat --env API_KEY=test -- npx -y @acme/mcp-server
+npx mcpkit -- node dist/server.js
+npx mcpkit -- uv run server.py
+npx mcpkit --env API_KEY=test -- npx -y @acme/mcp-server
 
 # Streamable HTTP
-npx mcp-use-compat --url https://example.com/mcp
-npx mcp-use-compat --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
+npx mcpkit --url https://example.com/mcp
+npx mcpkit --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
 
 # Only some clients (ids or aliases such as claude, vscode, gemini)
-npx mcp-use-compat --clients cursor,vscode,codex -- node dist/server.js
+npx mcpkit --clients cursor,vscode,codex -- node dist/server.js
 
 # Also try every published protocol version, and call read-only tools
-npx mcp-use-compat --version-matrix --probe-calls -- node dist/server.js
+npx mcpkit --version-matrix --probe-calls -- node dist/server.js
 
 # Save what the server exposed and re-check it later without running it
-npx mcp-use-compat --save-snapshot snap.json -- node dist/server.js
-npx mcp-use-compat --from-snapshot snap.json
+npx mcpkit --save-snapshot snap.json -- node dist/server.js
+npx mcpkit --from-snapshot snap.json
 ```
 
 | Option | Default | |
@@ -122,15 +124,15 @@ Exit codes: `0` nothing matched `--fail-on`, `1` something did, `2` usage error,
 **Tool calls happen only when you ask.** `--probe-calls` calls tools that explicitly declare `readOnlyHint: true`, never ones that also claim to be destructive or are named like writes (for example `place_order`), with the minimal arguments their schema requires. `call <tool>` calls exactly the tool you name:
 
 ```bash
-npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
+npx mcpkit call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
 ```
 
 ## Keeping the SDK current
 
 ```bash
-npx mcp-use-compat upgrade -- node dist/server.js            # what to upgrade, and the command
-npx mcp-use-compat upgrade --apply -- node dist/server.js    # run it, then re-check the server
-npx mcp-use-compat upgrade --apply --major -- node dist/server.js
+npx mcpkit upgrade -- node dist/server.js            # what to upgrade, and the command
+npx mcpkit upgrade --apply -- node dist/server.js    # run it, then re-check the server
+npx mcpkit upgrade --apply --major -- node dist/server.js
 ```
 
 `upgrade` finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp` and `fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the virtualenv, lockfiles), looks up the latest release, and prints the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go or cargo).
@@ -142,9 +144,9 @@ npx mcp-use-compat upgrade --apply --major -- node dist/server.js
 ## Comparing versions
 
 ```bash
-npx mcp-use-compat check --save-snapshot before.json -- node old/server.js
-npx mcp-use-compat check --save-snapshot after.json -- node dist/server.js
-npx mcp-use-compat diff before.json after.json    # exits 1 on breaking changes
+npx mcpkit check --save-snapshot before.json -- node old/server.js
+npx mcpkit check --save-snapshot after.json -- node dist/server.js
+npx mcpkit diff before.json after.json    # exits 1 on breaking changes
 ```
 
 Breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
@@ -152,19 +154,19 @@ Breaking: removed tools, resources, templates, prompts or capabilities; new requ
 ## OAuth-protected servers
 
 ```bash
-npx mcp-use-compat oauth login --url https://example.com/mcp
-npx mcp-use-compat check --oauth --url https://example.com/mcp
-npx mcp-use-compat oauth status
-npx mcp-use-compat oauth logout --url https://example.com/mcp
+npx mcpkit oauth login --url https://example.com/mcp
+npx mcpkit check --oauth --url https://example.com/mcp
+npx mcpkit oauth status
+npx mcpkit oauth logout --url https://example.com/mcp
 ```
 
-`oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (Client ID Metadata Documents, Dynamic Client Registration, or `--client-id` for a pre-registered client), the authorization request (PKCE S256 and `resource`), the callback (`state` and `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
+`oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (Client ID Metadata Documents, Dynamic Client Registration, or `--client-id` for a pre-registered client), the authorization request (PKCE S256 and `resource`), the callback (`state` and `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcpkit/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
 
 ## Fixing tool definitions
 
 ```bash
-npx mcp-use-compat fix snap.json --out fixed-tools.json
-npx mcp-use-compat fix snap.json --rename    # also rename tools that clients would rewrite
+npx mcpkit fix snap.json --out fixed-tools.json
+npx mcpkit fix snap.json --rename    # also rename tools that clients would rewrite
 ```
 
 `fix` never invents content. It removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement, such as a non-object root schema or a missing description, is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
@@ -208,7 +210,7 @@ Example rows from a report:
 | Continue | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L391) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L535-L550) | [❌](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L286) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L292-L300) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L343-L350) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPOauth.ts) | ? | [⚠️](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/tools/callTool.ts#L115-L142) | prefix `{server}_` |
 | Windsurf / Devin Desktop | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | ? | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | ? | ? | ≤ 100 tools |
 
-✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified 2026-09-26 to 2026-09-27; run `mcp-use-compat list-clients` for details.
+✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified 2026-09-26 to 2026-09-27; run `mcpkit list-clients` for details.
 <!-- clients:end -->
 
 Client behaviour changes quickly. If a fact is wrong or stale, please open an issue or PR against `src/profiles/` with a source.

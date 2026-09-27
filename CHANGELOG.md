@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Renamed from `mcp-use-compat` to `mcpkit`: install with `npm install -g mcpkit` and run `mcpkit`. Stored OAuth credentials move to `~/.config/mcpkit/oauth.json` automatically. The `mcp-use-compat` package is deprecated.
+
 ## 0.3.1
 
 - Repository moved to github.com/VrajVed/mcpkit; package links updated. No code changes.
