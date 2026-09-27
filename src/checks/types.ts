@@ -11,7 +11,8 @@ export type CheckArea =
   | "discovery"
   | "resources"
   | "ui"
-  | "auth";
+  | "auth"
+  | "calls";
 
 export interface Finding {
   checkId: string;

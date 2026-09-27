@@ -43,6 +43,22 @@ export interface ServerSnapshot {
   uiReads?: Record<string, UiRead>;
   /** One initialize per protocol version (--version-matrix). */
   versionMatrix?: VersionProbe[];
+  /** tools/call results (--probe-calls or the call command). */
+  calls?: CallProbe[];
+}
+
+export interface CallProbe {
+  tool: string;
+  args: Record<string, unknown>;
+  /** "probe" = picked automatically (readOnlyHint), "explicit" = named by the user. */
+  origin: "probe" | "explicit";
+  durationMs: number;
+  /** Set when the server answered with a JSON-RPC error or the call failed. */
+  error?: { code?: number; message: string };
+  /** Raw result, with large text truncated. */
+  result?: Record<string, unknown>;
+  /** Size of the full JSON result before truncation, in characters. */
+  resultChars?: number;
 }
 
 export interface VersionProbe {

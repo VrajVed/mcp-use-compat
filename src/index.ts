@@ -2,12 +2,14 @@
 import { isCommanderExit, parseCommandLine, UsageError, type Invocation } from "./cli.js";
 import { runDiff } from "./diff.js";
 import { explain } from "./explain.js";
-import { listChecks, listClients, run } from "./run.js";
+import { listChecks, listClients, run, runCall } from "./run.js";
 
 async function dispatch(invocation: Invocation): Promise<number> {
   switch (invocation.command) {
     case "check":
       return run(invocation.options);
+    case "call":
+      return runCall(invocation.options);
     case "diff":
       return runDiff(invocation.options);
     case "explain":

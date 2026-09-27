@@ -88,6 +88,17 @@ describe("parseCommandLine (subcommands)", () => {
     assert.equal(parseCommandLine(["--list-clients"], quiet).command, "list-clients");
   });
 
+  it("parses call with JSON args and target options", () => {
+    const c = parseCommandLine(["call", "get_quote", "--args", '{"symbol":"INFY"}', "--env", "K=V", "--", "node", "s.js"], quiet);
+    assert.equal(c.command, "call");
+    if (c.command !== "call") return;
+    assert.equal(c.options.tool, "get_quote");
+    assert.deepEqual(c.options.args, { symbol: "INFY" });
+    assert.deepEqual(c.options.target, { kind: "stdio", command: "node", args: ["s.js"], cwd: process.cwd(), env: { K: "V" } });
+    assert.throws(() => parseCommandLine(["call", "t", "--args", "[1]", "--", "node"], quiet));
+    assert.throws(() => parseCommandLine(["call", "t", "--args", "{nope", "--", "node"], quiet));
+  });
+
   it("does not treat a server command after -- as a subcommand", () => {
     const i = parseCommandLine(["--", "diff", "x"], quiet);
     assert.equal(i.command === "check" && i.options.target?.kind === "stdio" && i.options.target.command, "diff");

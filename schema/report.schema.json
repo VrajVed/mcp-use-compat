@@ -4,47 +4,116 @@
   "title": "mcp-use-compat report",
   "description": "Output of `mcp-use-compat --format json`. schemaVersion changes only on breaking changes.",
   "type": "object",
-  "required": ["schemaVersion", "tool", "generatedAt", "target", "server", "checks", "findings", "clients"],
+  "required": [
+    "schemaVersion",
+    "tool",
+    "generatedAt",
+    "target",
+    "server",
+    "checks",
+    "findings",
+    "clients"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
     "tool": {
       "type": "object",
-      "required": ["name", "version"],
-      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
     },
-    "generatedAt": { "type": "string", "format": "date-time" },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "target": {
       "oneOf": [
         {
           "type": "object",
-          "required": ["kind", "command", "args", "cwd"],
+          "required": [
+            "kind",
+            "command",
+            "args",
+            "cwd"
+          ],
           "properties": {
-            "kind": { "const": "stdio" },
-            "command": { "type": "string" },
-            "args": { "type": "array", "items": { "type": "string" } },
-            "cwd": { "type": "string" }
+            "kind": {
+              "const": "stdio"
+            },
+            "command": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "cwd": {
+              "type": "string"
+            }
           }
         },
         {
           "type": "object",
-          "required": ["kind", "url"],
-          "properties": { "kind": { "const": "http" }, "url": { "type": "string" } }
+          "required": [
+            "kind",
+            "url"
+          ],
+          "properties": {
+            "kind": {
+              "const": "http"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
         }
       ]
     },
     "server": {
       "type": "object",
-      "required": ["connected", "counts"],
+      "required": [
+        "connected",
+        "counts"
+      ],
       "properties": {
-        "connected": { "type": "boolean" },
-        "name": { "type": "string" },
-        "version": { "type": "string" },
-        "protocolVersion": { "type": "string" },
+        "connected": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
         "counts": {
           "type": "object",
-          "required": ["tools", "resources", "resourceTemplates", "prompts"],
-          "additionalProperties": { "type": "integer", "minimum": 0 }
+          "required": [
+            "tools",
+            "resources",
+            "resourceTemplates",
+            "prompts"
+          ],
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       }
     },
@@ -52,64 +121,176 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "area", "description", "ran"],
+        "required": [
+          "id",
+          "area",
+          "description",
+          "ran"
+        ],
         "properties": {
-          "id": { "$ref": "#/$defs/checkId" },
-          "area": { "$ref": "#/$defs/area" },
-          "description": { "type": "string" },
-          "ran": { "type": "boolean" }
+          "id": {
+            "$ref": "#/$defs/checkId"
+          },
+          "area": {
+            "$ref": "#/$defs/area"
+          },
+          "description": {
+            "type": "string"
+          },
+          "ran": {
+            "type": "boolean"
+          }
         }
       }
     },
-    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
     "clients": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["client", "displayName", "rows", "summary"],
+        "required": [
+          "client",
+          "displayName",
+          "rows",
+          "summary"
+        ],
         "properties": {
-          "client": { "type": "string" },
-          "displayName": { "type": "string" },
-          "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } },
+          "client": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/row"
+            }
+          },
           "summary": {
             "type": "object",
-            "required": ["pass", "warn", "fail", "info", "skip"],
-            "additionalProperties": { "type": "integer", "minimum": 0 }
+            "required": [
+              "pass",
+              "warn",
+              "fail",
+              "info",
+              "skip"
+            ],
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       }
     }
   },
   "$defs": {
-    "checkId": { "type": "string", "pattern": "^[A-Z]+(_[A-Z0-9]+)+$" },
-    "area": { "enum": ["transport", "protocol", "tools", "schema", "discovery", "resources", "ui", "auth"] },
-    "status": { "enum": ["pass", "warn", "fail", "info", "skip"] },
+    "checkId": {
+      "type": "string",
+      "pattern": "^[A-Z]+(_[A-Z0-9]+)+$"
+    },
+    "area": {
+      "enum": [
+        "transport",
+        "protocol",
+        "tools",
+        "schema",
+        "discovery",
+        "resources",
+        "ui",
+        "auth",
+        "calls"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "info",
+        "skip"
+      ]
+    },
     "finding": {
       "type": "object",
-      "required": ["checkId", "severity", "message"],
+      "required": [
+        "checkId",
+        "severity",
+        "message"
+      ],
       "properties": {
-        "checkId": { "$ref": "#/$defs/checkId" },
-        "severity": { "enum": ["error", "warn", "info"] },
-        "message": { "type": "string" },
-        "subject": { "type": "string" },
-        "evidence": { "type": "object" },
-        "fix": { "type": "string" },
-        "affects": { "type": "array", "items": { "type": "string" } },
-        "client": { "type": "string" },
-        "source": { "type": "string" }
+        "checkId": {
+          "$ref": "#/$defs/checkId"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warn",
+            "info"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "object"
+        },
+        "fix": {
+          "type": "string"
+        },
+        "affects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "client": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
       }
     },
     "row": {
       "type": "object",
-      "required": ["checkId", "area", "status", "message"],
+      "required": [
+        "checkId",
+        "area",
+        "status",
+        "message"
+      ],
       "properties": {
-        "checkId": { "$ref": "#/$defs/checkId" },
-        "area": { "$ref": "#/$defs/area" },
-        "status": { "$ref": "#/$defs/status" },
-        "message": { "type": "string" },
-        "subject": { "type": "string" },
-        "fix": { "type": "string" },
-        "source": { "type": "string" }
+        "checkId": {
+          "$ref": "#/$defs/checkId"
+        },
+        "area": {
+          "$ref": "#/$defs/area"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "message": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "fix": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
       }
     }
   }

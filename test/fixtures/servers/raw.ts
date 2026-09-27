@@ -31,6 +31,8 @@ export interface RawServerConfig {
   discover?: Record<string, unknown>;
   /** resources/read contents by URI. */
   resourceContents?: Record<string, { mimeType?: string; text: string }>;
+  /** tools/call results by tool name; `{ rpcError }` answers with a JSON-RPC error. */
+  callResults?: Record<string, unknown>;
 }
 
 export async function serve(config: RawServerConfig): Promise<void> {
@@ -50,7 +52,7 @@ export async function serve(config: RawServerConfig): Promise<void> {
   };
 
   createInterface({ input: process.stdin }).on("line", async (line) => {
-    let msg: { id?: number | string; method?: string; params?: { cursor?: string; uri?: string } };
+    let msg: { id?: number | string; method?: string; params?: { cursor?: string; uri?: string; name?: string } };
     try {
       msg = JSON.parse(line);
     } catch {
@@ -69,6 +71,16 @@ export async function serve(config: RawServerConfig): Promise<void> {
       const content = config.resourceContents?.[uri];
       if (content) send({ jsonrpc: "2.0", id, result: { contents: [{ uri, ...content }] } });
       else send({ jsonrpc: "2.0", id, error: { code: -32002, message: `Resource not found: ${uri}` } });
+      return;
+    }
+
+    if (method === "tools/call" && config.callResults) {
+      const name = (msg.params as { name?: string } | undefined)?.name ?? "";
+      console.error(`CALLED ${name}`);
+      const result = config.callResults[name] as { rpcError?: string } | undefined;
+      if (!result) send({ jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown tool: ${name}` } });
+      else if (result.rpcError) send({ jsonrpc: "2.0", id, error: { code: -32603, message: result.rpcError } });
+      else send({ jsonrpc: "2.0", id, result });
       return;
     }
 

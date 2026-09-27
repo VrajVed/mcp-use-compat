@@ -51,6 +51,9 @@ npx mcp-use-compat check --save-snapshot before.json -- node old/server.js
 npx mcp-use-compat check --save-snapshot after.json -- node dist/server.js
 npx mcp-use-compat diff before.json after.json          # exits 1 on breaking changes
 
+# Call one tool yourself and check its result
+npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
+
 # Why does a check exist, and which client facts does it use?
 npx mcp-use-compat explain TOOL_NAME_TOO_LONG
 
@@ -73,13 +76,16 @@ npx mcp-use-compat list-clients
 | `--cwd <dir>` | `.` | Working directory for the stdio server |
 | `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
 | `--save-snapshot <file>` / `--from-snapshot <file>` | | Save or re-check a snapshot |
+| `--probe-calls` | | Call read-only tools (see below) and check their results: valid result shape, `structuredContent` matching `outputSchema`, a text fallback |
 | `--version-matrix` | | Also `initialize` with each published protocol version (2024-11-05 to 2025-11-25), one session each |
 
 Exit codes: `0` nothing matched `--fail-on` · `1` something did · `2` usage error · `3` the server could not be started or reached.
 
 ### What it sends to your server
 
-`initialize`, the `tools`, `resources`, resource template and `prompts` list methods, `resources/read` for UI resources that tools link to, and `server/discover` (with `--version-matrix`, one extra `initialize` + `tools/list` per protocol version). Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known metadata URLs. It never calls tools.
+`initialize`, the `tools`, `resources`, resource template and `prompts` list methods, `resources/read` for UI resources that tools link to, and `server/discover` (with `--version-matrix`, one extra `initialize` + `tools/list` per protocol version). Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known metadata URLs.
+
+It only calls tools when you ask: `--probe-calls` calls tools that explicitly declare `readOnlyHint: true` (never ones that also claim to be destructive or are named like writes, e.g. `place_order`), with the minimal arguments their schema requires; `call <tool>` calls exactly the tool you name.
 
 ## In CI
 
@@ -220,6 +226,15 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 | `AUTH_PKCE_S256_MISSING` | Authorization server advertises PKCE S256 |
 | `AUTH_CLIENT_REGISTRATION` | Clients can register themselves (CIMD or DCR) |
 | `AUTH_INSECURE_URL` | Remote servers and OAuth endpoints use HTTPS |
+
+**calls**
+
+| Check | What it verifies |
+|---|---|
+| `CALL_RESULT_INVALID` | tools/call results match the MCP result schema |
+| `CALL_OUTPUT_SCHEMA_MISMATCH` | Tools with an outputSchema return matching structuredContent |
+| `CALL_STRUCTURED_WITHOUT_TEXT` | Structured results also carry a text copy |
+| `CALL_FAILED` | Reports tool calls that errored |
 <!-- checks:end -->
 
 ## Protocol versions

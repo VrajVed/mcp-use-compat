@@ -13,6 +13,7 @@ import {
 } from "../snapshot.js";
 import { TOOL_NAME, VERSION } from "../version.js";
 import { linkedUiUris } from "../ui.js";
+import { callTool, probeCalls } from "./calls.js";
 import { probeHttpAuth } from "./http.js";
 import { RpcError, RpcSession } from "./session.js";
 import { CapturingStdioTransport } from "./stdio.js";
@@ -29,6 +30,12 @@ export interface ConnectOptions {
   authProbe: boolean;
   /** Also initialize once per SDK-supported protocol version (one extra session each). */
   versionMatrix?: boolean;
+  /** Call tools that declare readOnlyHint: true, with synthesized arguments. */
+  probeCalls?: boolean;
+  /** Tools the user asked to call explicitly, with their arguments. */
+  calls?: Array<{ tool: string; args: Record<string, unknown> }>;
+  /** Progress messages (stderr). */
+  log?: (msg: string) => void;
 }
 
 function makeTransport(target: ConnectTarget): Transport {
@@ -85,6 +92,13 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
       snapshot.lists[kind] = await listAll(session, kind, timeoutMs);
     }
     snapshot.uiReads = await readUiResources(session, snapshot, timeoutMs);
+    if (options.probeCalls || options.calls?.length) {
+      const log = options.log ?? ((msg: string) => console.error(msg));
+      snapshot.calls = options.probeCalls ? await probeCalls(session, snapshot.lists.tools?.items ?? [], timeoutMs, log) : [];
+      for (const { tool, args } of options.calls ?? []) {
+        snapshot.calls.push(await callTool(session, tool, args, "explicit", timeoutMs));
+      }
+    }
     if (target.kind === "stdio") snapshot.discover = await discover(session, timeoutMs);
   } catch (err) {
     snapshot.connect = { ok: false, error: describeError(err, transport) };

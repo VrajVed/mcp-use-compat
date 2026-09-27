@@ -1,12 +1,13 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { ALL_CHECKS } from "./checks/index.js";
 import type { CheckArea } from "./checks/types.js";
-import { UsageError, type RunOptions, type TargetOptions } from "./cli.js";
-import { connect } from "./connect/index.js";
+import { UsageError, type CallOptions, type RunOptions, type TargetOptions } from "./cli.js";
+import { connect, type ConnectOptions } from "./connect/index.js";
 import { evaluate } from "./evaluate.js";
 import { EXIT, exitCode, failures, parsePolicy, PolicyError } from "./policy.js";
 import { ALL_PROFILES, selectProfiles, UnknownClientError } from "./profiles/index.js";
 import { markdownReporter, REPORTERS } from "./reporters/index.js";
+import { cell } from "./reporters/escape.js";
 import { loadSnapshot, saveSnapshot, type ServerSnapshot } from "./snapshot.js";
 
 const AREAS = [...new Set(ALL_CHECKS.map((c) => c.area))] as CheckArea[];
@@ -50,14 +51,49 @@ export async function run(options: RunOptions): Promise<number> {
   return code;
 }
 
-export async function getSnapshot(options: TargetOptions & { versionMatrix?: boolean }): Promise<ServerSnapshot> {
+export async function getSnapshot(
+  options: TargetOptions & Pick<ConnectOptions, "versionMatrix" | "probeCalls" | "calls">
+): Promise<ServerSnapshot> {
   if (options.fromSnapshot) return loadSnapshot(options.fromSnapshot);
   return connect({
     target: options.target!,
     timeoutMs: options.timeoutMs,
     authProbe: options.authProbe,
     versionMatrix: options.versionMatrix,
+    probeCalls: options.probeCalls,
+    calls: options.calls,
   });
+}
+
+/** Calls one tool, prints its result and any call findings. */
+export async function runCall(options: CallOptions): Promise<number> {
+  if (options.fromSnapshot) throw new UsageError("call needs a live server (-- <command> or --url), not a snapshot");
+  const snapshot = await getSnapshot({ ...options, calls: [{ tool: options.tool, args: options.args }] });
+  if (!snapshot.connect.ok) {
+    console.error(`✖ Could not connect to the server: ${snapshot.connect.error ?? "unknown error"}`);
+    return EXIT.connectFailed;
+  }
+  const probe = snapshot.calls?.[0];
+  const report = evaluate(snapshot, ALL_CHECKS.filter((c) => c.area === "calls"), []);
+  const known = snapshot.lists.tools?.items.some((t) => t.name === options.tool);
+
+  if (options.format === "json") {
+    process.stdout.write(JSON.stringify({ call: probe, findings: report.findings }, null, 2) + "\n");
+  } else {
+    const lines = [`# ${options.tool}(${JSON.stringify(options.args)})`, ""];
+    if (!known) lines.push(`_Note: "${options.tool}" is not in the server's tools/list._`, "");
+    lines.push(`${probe?.durationMs ?? "?"} ms${probe?.resultChars !== undefined ? ` · ${probe.resultChars} characters` : ""}`, "");
+    lines.push("```json", JSON.stringify(probe?.result ?? { error: probe?.error }, null, 2), "```", "");
+    if (report.findings.length) {
+      lines.push("| Severity | Check | Message |", "|---|---|---|");
+      for (const f of report.findings) lines.push(`| ${f.severity} | \`${f.checkId}\` | ${cell(f.message)} |`);
+    } else {
+      lines.push("_No problems found in the result._");
+    }
+    process.stdout.write(lines.join("\n") + "\n");
+  }
+  const failed = report.findings.some((f) => f.severity === "error") || !!probe?.error;
+  return failed ? EXIT.failed : EXIT.ok;
 }
 
 export function listChecks(): number {

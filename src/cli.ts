@@ -15,6 +15,7 @@ export interface TargetOptions {
 export interface RunOptions extends TargetOptions {
   saveSnapshot?: string;
   versionMatrix: boolean;
+  probeCalls: boolean;
   clients?: string[];
   format: OutputFormat;
   out?: string;
@@ -31,8 +32,15 @@ export interface DiffOptions {
   failOn: "breaking" | "any" | "none";
 }
 
+export interface CallOptions extends TargetOptions {
+  tool: string;
+  args: Record<string, unknown>;
+  format: "md" | "json";
+}
+
 export type Invocation =
   | { command: "check"; options: RunOptions }
+  | { command: "call"; options: CallOptions }
   | { command: "diff"; options: DiffOptions }
   | { command: "explain"; checkId: string }
   | { command: "list-checks" }
@@ -62,6 +70,7 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
   addTargetOptions(check)
     .option("--save-snapshot <file>", "write the raw server snapshot to a file")
     .option("--version-matrix", "also initialize with every protocol version (one session each)", false)
+    .option("--probe-calls", "call tools that declare readOnlyHint: true, with arguments generated from their schema", false)
     .option("-c, --clients <list>", "comma-separated client ids (default: all)", splitList)
     .option("-f, --format <format>", "md | json | github", parseFormat, "md")
     .option("-o, --out <file>", "write the report to a file instead of stdout")
@@ -72,6 +81,7 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
       const base = {
         saveSnapshot: opts.saveSnapshot as string | undefined,
         versionMatrix: opts.versionMatrix as boolean,
+        probeCalls: opts.probeCalls as boolean,
         clients: opts.clients as string[] | undefined,
         format: opts.format as OutputFormat,
         out: opts.out as string | undefined,
@@ -101,6 +111,28 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
           format: opts.format as OutputFormat,
           out: opts.out as string | undefined,
           failOn: opts.failOn as DiffOptions["failOn"],
+        },
+      };
+    });
+
+  const callCommand = program
+    .command("call")
+    .description("call one tool (any tool, at your own risk) and check the result")
+    .usage("<tool> [options] -- <command> [args...]")
+    .argument("<tool>", "tool name")
+    .argument("[command...]", "stdio server command, after --");
+  addTargetOptions(callCommand)
+    .option("-a, --args <json>", "tool arguments as JSON (default: {})", parseJsonObject, {})
+    .option("-f, --format <format>", "md | json", parseFormat, "md")
+    .action((tool: string, command: string[], opts: Record<string, unknown>) => {
+      if (opts.format === "github") throw new UsageError("call supports --format md or json");
+      result = {
+        command: "call",
+        options: {
+          tool,
+          args: opts.args as Record<string, unknown>,
+          format: opts.format as "md" | "json",
+          ...resolveTarget(command, opts, warn),
         },
       };
     });
@@ -140,6 +172,7 @@ export function parseArgs(argv: string[], warn: Warn = console.error): RunOption
       format: "md",
       failOn: "error",
       versionMatrix: false,
+      probeCalls: false,
       timeoutMs: 10000,
       authProbe: true,
       listChecks: invocation.command === "list-checks",
@@ -215,6 +248,17 @@ function parseFormat(value: string): OutputFormat {
   if (value === "markdown") return "md";
   if (value === "md" || value === "json" || value === "github") return value;
   throw new InvalidArgumentError("must be md, json or github");
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (err) {
+    throw new InvalidArgumentError(`not valid JSON: ${(err as Error).message}`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new InvalidArgumentError("must be a JSON object");
+  return parsed as Record<string, unknown>;
 }
 
 function parseDiffFailOn(value: string): DiffOptions["failOn"] {

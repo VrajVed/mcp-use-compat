@@ -99,6 +99,23 @@ describe("cli end to end", () => {
     assert.match(stdout, /UI_TOOL_LINK_BROKEN/);
   });
 
+  it("call runs one tool and fails on an invalid result", async () => {
+    const ok = await cli(["call", "get_fine", "--args", '{"symbol":"X"}', "--format", "json", "--", TSX, fixturePath("calls")]);
+    assert.equal(ok.code, 0);
+    assert.deepEqual(JSON.parse(ok.stdout).call.result.structuredContent, { price: 12 });
+    const bad = await cli(["call", "get_price", "--", TSX, fixturePath("calls")]);
+    assert.equal(bad.code, 1);
+    assert.match(bad.stdout, /CALL_OUTPUT_SCHEMA_MISMATCH/);
+  });
+
+  it("check --probe-calls reports call problems", async () => {
+    const { report } = await json("--probe-calls", "--clients", "cursor", "--", TSX, fixturePath("calls"));
+    const ids = new Set(report.findings.map((f: { checkId: string }) => f.checkId));
+    for (const id of ["CALL_RESULT_INVALID", "CALL_OUTPUT_SCHEMA_MISMATCH", "CALL_STRUCTURED_WITHOUT_TEXT", "CALL_FAILED"]) {
+      assert.ok(ids.has(id), id);
+    }
+  });
+
   it("lists checks and clients", async () => {
     const checks = await cli(["--list-checks"]);
     assert.match(checks.stdout, /TRANSPORT_STDOUT_POLLUTION/);

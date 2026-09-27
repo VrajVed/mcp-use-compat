@@ -265,4 +265,20 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     why: "OAuth 2.1 requires HTTPS outside loopback, and hosted clients refuse plain HTTP.",
     sources: ["https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1"],
   },
+  CALL_RESULT_INVALID: {
+    why: "SDK-based clients validate tools/call results; an invalid one is an error in the client, not a result the model sees.",
+    sources: [`${SPEC}/server/tools#tool-result`, SDK_TYPES],
+  },
+  CALL_OUTPUT_SCHEMA_MISMATCH: {
+    why: "A tool that declares outputSchema must return structuredContent that conforms to it; SDK clients check this and fail the call otherwise.",
+    sources: [`${SPEC}/server/tools#output-schema`],
+  },
+  CALL_STRUCTURED_WITHOUT_TEXT: {
+    why: "Clients that don't read structuredContent only see the text content; the spec recommends a serialized copy.",
+    sources: [`${SPEC}/server/tools#structured-content`],
+    features: ["structuredContent"],
+  },
+  CALL_FAILED: {
+    why: "Calls that error are listed for context. With --probe-calls the arguments are generated from the schema, so errors may be expected.",
+  },
 };
