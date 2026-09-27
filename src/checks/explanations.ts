@@ -351,6 +351,10 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     why: "Clients cancel tool calls after a timeout; calls near the limit fail under load.",
     limits: ["toolTimeoutMs"],
   },
+  SDK_OUTDATED: {
+    why: "Most protocol and compatibility fixes arrive through SDK releases. The tool reads the server's project to find its SDK and installed version, looks up the latest release, and prints the upgrade command for your package manager.",
+    sources: ["https://unpkg.com/@modelcontextprotocol/sdk@1.30.1/dist/esm/types.js", "https://pypi.org/project/mcp-types/2.2.0/"],
+  },
   CALL_FAILED: {
     why: "Calls that error are listed for context. With --probe-calls the arguments are generated from the schema, so errors may be expected.",
   },

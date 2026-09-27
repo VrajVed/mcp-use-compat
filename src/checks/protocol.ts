@@ -1,6 +1,7 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { LIST_KINDS, type ListKind, type ModernPageMeta, type ServerSnapshot } from "../snapshot.js";
 import { connected, declared, str } from "./util.js";
+import { upgradeHint } from "./sdk.js";
 import { defineCheck, type Finding } from "./types.js";
 
 const KINDS = Object.keys(LIST_KINDS) as ListKind[];
@@ -66,7 +67,7 @@ export const protocolChecks = [
               checkId: "PROTOCOL_DISCOVER_MISSING",
               severity: "info",
               message: `server/discover failed (${s.discover!.error?.message ?? "unknown error"}), so the server only speaks the initialize-based protocol. That works with today's clients; clients on revision ${MODERN} have to fall back to initialize.`,
-              fix: `Upgrade to an SDK that supports protocol ${MODERN} when your target clients do.`,
+              fix: `When your target clients support ${MODERN}: ${upgradeHint(s, true)}`,
             },
           ],
   }),
@@ -234,7 +235,7 @@ export const protocolChecks = [
           severity: v.startsWith("2024-") ? "warn" : "info",
           message: `Server negotiated ${v}; latest is ${LATEST_PROTOCOL_VERSION}. Features added in later spec revisions are unavailable to clients.`,
           evidence: { negotiated: v, latest: LATEST_PROTOCOL_VERSION },
-          fix: "Upgrade your MCP SDK.",
+          fix: upgradeHint(s),
         },
       ];
     },

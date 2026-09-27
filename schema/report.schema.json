@@ -234,7 +234,8 @@
         "resources",
         "ui",
         "auth",
-        "calls"
+        "calls",
+        "sdk"
       ]
     },
     "status": {

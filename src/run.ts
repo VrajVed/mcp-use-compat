@@ -67,6 +67,7 @@ export async function getSnapshot(
     versionMatrix: options.versionMatrix,
     probeCalls: options.probeCalls,
     calls: options.calls,
+    offline: options.offline,
   });
 }
 

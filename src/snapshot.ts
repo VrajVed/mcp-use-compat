@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import type { ProjectInfo } from "./project.js";
 
 /**
  * Everything we observed about a server in one session. Plain JSON so it can be
@@ -55,6 +56,8 @@ export interface ServerSnapshot {
   versionMatrix?: VersionProbe[];
   /** tools/call results (--probe-calls or the call command). */
   calls?: CallProbe[];
+  /** The stdio server's project and the MCP SDKs it uses. */
+  project?: ProjectInfo;
 }
 
 export interface CallProbe {

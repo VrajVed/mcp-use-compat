@@ -12,6 +12,8 @@ export interface TargetOptions {
   authProbe: boolean;
   /** Use stored OAuth credentials (from `oauth login`) for --url. */
   oauth?: boolean;
+  /** Skip registry lookups for the server's SDK versions. */
+  offline?: boolean;
 }
 
 export interface OAuthLoginOptions {
@@ -51,6 +53,19 @@ export interface CallOptions extends TargetOptions {
   format: "md" | "json";
 }
 
+export interface UpgradeOptions {
+  /** Server command after --; enables before/after checks with --apply. */
+  target?: ConnectTarget;
+  /** Project directory when no server command is given. */
+  dir: string;
+  apply: boolean;
+  major: boolean;
+  offline: boolean;
+  timeoutMs: number;
+  /** Runs a shell command; tests replace it. */
+  run?: (command: string, cwd: string) => Promise<number>;
+}
+
 export interface FixOptions {
   input: string;
   out?: string;
@@ -64,6 +79,7 @@ export type Invocation =
   | { command: "diff"; options: DiffOptions }
   | { command: "explain"; checkId: string }
   | { command: "fix"; options: FixOptions }
+  | { command: "upgrade"; options: UpgradeOptions }
   | { command: "oauth-login"; options: OAuthLoginOptions }
   | { command: "oauth-status" }
   | { command: "oauth-logout"; url: string }
@@ -199,6 +215,35 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .action((opts: Record<string, unknown>) => void (result = { command: "oauth-logout", url: parseUrl(opts.url as string) }));
 
   program
+    .command("upgrade")
+    .description("find the server's MCP SDK, compare it with the latest release, and print (or --apply) the upgrade")
+    .usage("[options] [-- <server command>]")
+    .argument("[command...]", "stdio server command, after --; with --apply the server is re-checked before and after")
+    .option("--dir <path>", "project directory, when no server command is given", process.cwd())
+    .option("--cwd <dir>", "working directory for the server command", process.cwd())
+    .option("--env <KEY=VAL>", "environment variable for the server (repeatable)", collectKeyValue("="), {})
+    .option("--apply", "run the upgrade commands (minor updates; majors need --major)", false)
+    .option("--major", "with --apply, also run major-version upgrades", false)
+    .option("--offline", "don't look up latest versions", false)
+    .option("--timeout <ms>", "per-request timeout for the re-checks", parsePositiveInt, 10000)
+    .action((command: string[], opts: Record<string, unknown>) => {
+      const target: ConnectTarget | undefined = command.length
+        ? { kind: "stdio", command: command[0], args: command.slice(1), cwd: opts.cwd as string, env: opts.env as Record<string, string> }
+        : undefined;
+      result = {
+        command: "upgrade",
+        options: {
+          target,
+          dir: opts.dir as string,
+          apply: opts.apply as boolean,
+          major: opts.major as boolean,
+          offline: opts.offline as boolean,
+          timeoutMs: opts.timeout as number,
+        },
+      };
+    });
+
+  program
     .command("fix")
     .description("apply safe mechanical fixes to tool definitions and list what changed")
     .argument("<input>", "snapshot (from --save-snapshot), { tools: [...] } or an array of tools")
@@ -267,7 +312,8 @@ export function addTargetOptions(cmd: Command): Command {
     .option("--header <Name:Value>", "HTTP header for --url (repeatable)", collectKeyValue(":"), {})
     .option("--cwd <dir>", "working directory for the stdio server", process.cwd())
     .option("--no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)")
-    .option("--oauth", "use credentials stored by `oauth login` (--url only)", false);
+    .option("--oauth", "use credentials stored by `oauth login` (--url only)", false)
+    .option("--offline", "don't look up the latest SDK versions", false);
 }
 
 /** Turns the shared target options plus the positional command into a TargetOptions. */
@@ -277,6 +323,7 @@ export function resolveTarget(command: string[], opts: Record<string, unknown>, 
     timeoutMs: opts.timeout as number,
     authProbe: opts.authProbe as boolean,
     oauth: opts.oauth as boolean,
+    offline: opts.offline as boolean,
   };
   if (base.oauth && !opts.url) throw new UsageError("--oauth needs --url");
   const sources = [command.length > 0, !!opts.url, !!base.fromSnapshot].filter(Boolean).length;

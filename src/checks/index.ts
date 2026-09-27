@@ -4,6 +4,7 @@ import { discoveryChecks } from "./discovery.js";
 import { protocolChecks } from "./protocol.js";
 import { resourceChecks } from "./resources.js";
 import { schemaChecks } from "./schema.js";
+import { sdkChecks } from "./sdk.js";
 import { toolChecks } from "./tools.js";
 import { transportChecks } from "./transport.js";
 import { uiChecks } from "./ui.js";
@@ -19,4 +20,5 @@ export const ALL_CHECKS: Check[] = [
   ...uiChecks,
   ...authChecks,
   ...callChecks,
+  ...sdkChecks,
 ];

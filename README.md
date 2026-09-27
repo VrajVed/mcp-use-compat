@@ -60,6 +60,11 @@ npx mcp-use-compat check --oauth --url https://example.com/mcp
 npx mcp-use-compat oauth status
 npx mcp-use-compat oauth logout --url https://example.com/mcp
 
+# Is the server's MCP SDK up to date? Get the exact upgrade command for your package manager
+npx mcp-use-compat upgrade -- node dist/server.js
+# Apply it, then re-check the server and show what changed (majors need --major)
+npx mcp-use-compat upgrade --apply -- node dist/server.js
+
 # Safe mechanical fixes to tool definitions, with a list of what changed
 npx mcp-use-compat fix snap.json --out fixed-tools.json
 npx mcp-use-compat fix snap.json --rename      # also rename tools clients would rewrite
@@ -72,6 +77,8 @@ npx mcp-use-compat list-clients
 ```
 
 `oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (CIMD, DCR, or `--client-id` for a pre-registered client), the authorization request (PKCE S256, `resource`), the callback (`state`, `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
+
+`upgrade` (and `check`, for stdio servers) finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp`/`fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the venv, lockfiles), looks up the latest release, and gives the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go, cargo). When the server negotiates an old protocol version, that command appears in the finding itself. `--apply` runs minor upgrades (majors only with `--major`), updates `==` pins in requirements files, and, given the server command, checks the server before and after and reports any breaking changes. Moving from `@modelcontextprotocol/sdk` v1 to the v2 packages is a migration and is never applied automatically. Use `--offline` to skip registry lookups.
 
 `fix` never invents content: it removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement (a non-object root schema, a missing description) is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
 
@@ -272,6 +279,12 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 | `CALL_RESULT_TOO_LARGE` | Tool results fit each client's result size limit |
 | `CALL_SLOW` | Tool calls finish well within each client's timeout |
 | `CALL_FAILED` | Reports tool calls that errored |
+
+**sdk**
+
+| Check | What it verifies |
+|---|---|
+| `SDK_OUTDATED` | The server's MCP SDK is the latest release |
 <!-- checks:end -->
 
 ## Protocol versions

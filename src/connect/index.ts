@@ -9,6 +9,7 @@ import {
   type VersionProbe,
 } from "../snapshot.js";
 import { TOOL_NAME, VERSION } from "../version.js";
+import { detectProject, lookupLatest } from "../project.js";
 import { callTool, probeCalls } from "./calls.js";
 import { MODERN_VERSION, probeModern } from "./modern.js";
 import { listAll, readUiResources, requester } from "./lists.js";
@@ -32,6 +33,8 @@ export interface ConnectOptions {
   calls?: Array<{ tool: string; args: Record<string, unknown> }>;
   /** Progress messages (stderr). */
   log?: (msg: string) => void;
+  /** Skip registry lookups for the project's SDK versions. */
+  offline?: boolean;
 }
 
 function makeTransport(target: ConnectTarget): Transport {
@@ -140,6 +143,14 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
 
   if (target.kind === "http" && options.authProbe) {
     snapshot.http = await probeHttpAuth(target.url, target.headers, timeoutMs);
+  }
+
+  if (target.kind === "stdio") {
+    const project = detectProject(target.command, target.args, target.cwd);
+    if (project) {
+      if (!options.offline) await lookupLatest(project.sdks);
+      snapshot.project = project;
+    }
   }
 
   if (options.versionMatrix && snapshot.connect.ok && snapshot.era !== "modern") {
