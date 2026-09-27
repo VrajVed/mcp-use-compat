@@ -99,6 +99,29 @@ describe("parseCommandLine (subcommands)", () => {
     assert.throws(() => parseCommandLine(["call", "t", "--args", "{nope", "--", "node"], quiet));
   });
 
+  it("parses the oauth commands", () => {
+    const login = parseCommandLine(["oauth", "login", "--url", "https://m.example/mcp", "--callback-port", "8787", "--no-browser"], quiet);
+    assert.equal(login.command, "oauth-login");
+    if (login.command === "oauth-login") {
+      assert.equal(login.options.url, "https://m.example/mcp");
+      assert.equal(login.options.callbackPort, 8787);
+      assert.equal(login.options.openBrowser, false);
+      assert.equal(login.options.timeoutMs, 300000);
+    }
+    assert.deepEqual(parseCommandLine(["oauth", "status"], quiet), { command: "oauth-status" });
+    assert.deepEqual(parseCommandLine(["oauth", "logout", "--url", "https://m.example/mcp"], quiet), {
+      command: "oauth-logout",
+      url: "https://m.example/mcp",
+    });
+    assert.throws(() => parseCommandLine(["oauth", "login"], quiet));
+  });
+
+  it("accepts --oauth only with --url", () => {
+    const c = parseCommandLine(["--oauth", "--url", "https://m.example/mcp"], quiet);
+    assert.equal(c.command === "check" && c.options.oauth, true);
+    assert.throws(() => parseCommandLine(["--oauth", "--", "node", "s.js"], quiet), UsageError);
+  });
+
   it("does not treat a server command after -- as a subcommand", () => {
     const i = parseCommandLine(["--", "diff", "x"], quiet);
     assert.equal(i.command === "check" && i.options.target?.kind === "stdio" && i.options.target.command, "diff");

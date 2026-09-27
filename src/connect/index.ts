@@ -1,3 +1,4 @@
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -22,7 +23,7 @@ const MAX_PAGES = 50;
 
 export type ConnectTarget =
   | { kind: "stdio"; command: string; args: string[]; cwd: string; env: Record<string, string> }
-  | { kind: "http"; url: string; headers: Record<string, string> };
+  | { kind: "http"; url: string; headers: Record<string, string>; authProvider?: OAuthClientProvider };
 
 export interface ConnectOptions {
   target: ConnectTarget;
@@ -41,7 +42,10 @@ export interface ConnectOptions {
 function makeTransport(target: ConnectTarget): Transport {
   return target.kind === "stdio"
     ? new CapturingStdioTransport(target)
-    : new StreamableHTTPClientTransport(new URL(target.url), { requestInit: { headers: target.headers } });
+    : new StreamableHTTPClientTransport(new URL(target.url), {
+        requestInit: { headers: target.headers },
+        authProvider: target.authProvider,
+      });
 }
 
 export async function connect(options: ConnectOptions): Promise<ServerSnapshot> {
@@ -117,7 +121,9 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
 
   if (target.kind === "http") {
     // Over HTTP, 2026-07-28 requests are independent POSTs, so probe outside the session.
-    snapshot.discover = await discoverHttp(target.url, target.headers, timeoutMs);
+    const tokens = await target.authProvider?.tokens();
+    const headers = tokens ? { ...target.headers, authorization: `Bearer ${tokens.access_token}` } : target.headers;
+    snapshot.discover = await discoverHttp(target.url, headers, timeoutMs);
     if (options.authProbe) snapshot.http = await probeHttpAuth(target.url, target.headers, timeoutMs);
   }
 

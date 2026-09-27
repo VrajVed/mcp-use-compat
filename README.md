@@ -54,12 +54,20 @@ npx mcp-use-compat diff before.json after.json          # exits 1 on breaking ch
 # Call one tool yourself and check its result
 npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
 
+# OAuth-protected servers: log in once (browser), then check with the stored token
+npx mcp-use-compat oauth login --url https://example.com/mcp
+npx mcp-use-compat check --oauth --url https://example.com/mcp
+npx mcp-use-compat oauth status
+npx mcp-use-compat oauth logout --url https://example.com/mcp
+
 # Why does a check exist, and which client facts does it use?
 npx mcp-use-compat explain TOOL_NAME_TOO_LONG
 
 npx mcp-use-compat list-checks
 npx mcp-use-compat list-clients
 ```
+
+`oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (CIMD, DCR, or `--client-id` for a pre-registered client), the authorization request (PKCE S256, `resource`), the callback (`state`, `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
 
 `diff` treats as breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
 
@@ -77,6 +85,7 @@ npx mcp-use-compat list-clients
 | `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
 | `--save-snapshot <file>` / `--from-snapshot <file>` | | Save or re-check a snapshot |
 | `--probe-calls` | | Call read-only tools (see below) and check their results: valid result shape, `structuredContent` matching `outputSchema`, a text fallback |
+| `--oauth` | | Use credentials from `oauth login` (with `--url`) |
 | `--version-matrix` | | Also `initialize` with each published protocol version (2024-11-05 to 2025-11-25), one session each |
 
 Exit codes: `0` nothing matched `--fail-on` · `1` something did · `2` usage error · `3` the server could not be started or reached.

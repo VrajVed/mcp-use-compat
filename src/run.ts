@@ -1,7 +1,8 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { ALL_CHECKS } from "./checks/index.js";
 import type { CheckArea } from "./checks/types.js";
-import { UsageError, type CallOptions, type RunOptions, type TargetOptions } from "./cli.js";
+import { UsageError, type CallOptions, type OAuthLoginOptions, type RunOptions, type TargetOptions } from "./cli.js";
+import { CredentialStore, describeCredentials, oauthLogin, StoredOAuthProvider } from "./oauth.js";
 import { connect, type ConnectOptions } from "./connect/index.js";
 import { evaluate } from "./evaluate.js";
 import { EXIT, exitCode, failures, parsePolicy, PolicyError } from "./policy.js";
@@ -55,8 +56,12 @@ export async function getSnapshot(
   options: TargetOptions & Pick<ConnectOptions, "versionMatrix" | "probeCalls" | "calls">
 ): Promise<ServerSnapshot> {
   if (options.fromSnapshot) return loadSnapshot(options.fromSnapshot);
+  let target = options.target!;
+  if (options.oauth && target.kind === "http") {
+    target = { ...target, authProvider: new StoredOAuthProvider(target.url, new CredentialStore()) };
+  }
   return connect({
-    target: options.target!,
+    target,
     timeoutMs: options.timeoutMs,
     authProbe: options.authProbe,
     versionMatrix: options.versionMatrix,
@@ -94,6 +99,41 @@ export async function runCall(options: CallOptions): Promise<number> {
   }
   const failed = report.findings.some((f) => f.severity === "error") || !!probe?.error;
   return failed ? EXIT.failed : EXIT.ok;
+}
+
+export async function runOAuthLogin(options: OAuthLoginOptions): Promise<number> {
+  const steps = await oauthLogin({
+    ...options,
+    log: (m) => console.error(m),
+    verify: async (provider) => {
+      const snapshot = await connect({
+        target: { kind: "http", url: options.url, headers: {}, authProvider: provider },
+        timeoutMs: 15000,
+        authProbe: false,
+      });
+      if (!snapshot.connect.ok) throw new Error(snapshot.connect.error ?? "connect failed");
+      return `initialize + tools/list OK (${snapshot.lists.tools?.items.length ?? 0} tools)`;
+    },
+  });
+  const ok = steps.length > 0 && steps.every((s) => s.ok);
+  console.error(ok ? `\n✔ Logged in. Use --oauth with check/call to reuse these credentials.` : `\n✖ Login did not complete.`);
+  return ok ? EXIT.ok : EXIT.failed;
+}
+
+export function runOAuthStatus(): number {
+  const all = new CredentialStore().all();
+  const urls = Object.keys(all);
+  if (urls.length === 0) console.log("No stored credentials.");
+  for (const url of urls) console.log(describeCredentials(url, all[url]));
+  return EXIT.ok;
+}
+
+export function runOAuthLogout(url: string): number {
+  const store = new CredentialStore();
+  const had = url in store.all();
+  store.update(url, () => undefined);
+  console.error(had ? `Removed credentials for ${url}.` : `No credentials stored for ${url}.`);
+  return EXIT.ok;
 }
 
 export function listChecks(): number {

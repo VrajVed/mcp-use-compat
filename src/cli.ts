@@ -10,6 +10,19 @@ export interface TargetOptions {
   fromSnapshot?: string;
   timeoutMs: number;
   authProbe: boolean;
+  /** Use stored OAuth credentials (from `oauth login`) for --url. */
+  oauth?: boolean;
+}
+
+export interface OAuthLoginOptions {
+  url: string;
+  callbackPort: number;
+  clientId?: string;
+  clientSecret?: string;
+  clientMetadataUrl?: string;
+  scope?: string;
+  openBrowser: boolean;
+  timeoutMs: number;
 }
 
 export interface RunOptions extends TargetOptions {
@@ -43,6 +56,9 @@ export type Invocation =
   | { command: "call"; options: CallOptions }
   | { command: "diff"; options: DiffOptions }
   | { command: "explain"; checkId: string }
+  | { command: "oauth-login"; options: OAuthLoginOptions }
+  | { command: "oauth-status" }
+  | { command: "oauth-logout"; url: string }
   | { command: "list-checks" }
   | { command: "list-clients" };
 
@@ -137,6 +153,43 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
       };
     });
 
+  const oauth = program.command("oauth").description("log in to OAuth-protected servers and manage stored credentials");
+  oauth
+    .command("login")
+    .description("run the browser OAuth flow, report each step, and store the tokens")
+    .requiredOption("--url <url>", "MCP server URL")
+    .option("--callback-port <port>", "local port for the redirect (0 = random; pre-registered clients need a fixed one)", parsePort, 0)
+    .option("--client-id <id>", "use a pre-registered client instead of CIMD/DCR")
+    .option("--client-secret <secret>", "secret for --client-id (confidential clients)")
+    .option("--client-metadata-url <url>", "HTTPS URL of a Client ID Metadata Document you host (used if the server supports CIMD)")
+    .option("--scope <scope>", "scopes to request (default: what the server advertises)")
+    .option("--no-browser", "print the login URL instead of opening a browser")
+    .option("--timeout <ms>", "how long to wait for the browser login", parsePositiveInt, 300000)
+    .action((opts: Record<string, unknown>) => {
+      result = {
+        command: "oauth-login",
+        options: {
+          url: parseUrl(opts.url as string),
+          callbackPort: opts.callbackPort as number,
+          clientId: opts.clientId as string | undefined,
+          clientSecret: opts.clientSecret as string | undefined,
+          clientMetadataUrl: opts.clientMetadataUrl as string | undefined,
+          scope: opts.scope as string | undefined,
+          openBrowser: opts.browser as boolean,
+          timeoutMs: opts.timeout as number,
+        },
+      };
+    });
+  oauth
+    .command("status")
+    .description("list servers with stored credentials")
+    .action(() => void (result = { command: "oauth-status" }));
+  oauth
+    .command("logout")
+    .description("delete stored credentials for a server")
+    .requiredOption("--url <url>", "MCP server URL")
+    .action((opts: Record<string, unknown>) => void (result = { command: "oauth-logout", url: parseUrl(opts.url as string) }));
+
   program
     .command("explain")
     .description("explain what a check verifies, why, and where the facts come from")
@@ -191,7 +244,8 @@ export function addTargetOptions(cmd: Command): Command {
     .option("--env <KEY=VAL>", "environment variable for the stdio server (repeatable)", collectKeyValue("="), {})
     .option("--header <Name:Value>", "HTTP header for --url (repeatable)", collectKeyValue(":"), {})
     .option("--cwd <dir>", "working directory for the stdio server", process.cwd())
-    .option("--no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)");
+    .option("--no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)")
+    .option("--oauth", "use credentials stored by `oauth login` (--url only)", false);
 }
 
 /** Turns the shared target options plus the positional command into a TargetOptions. */
@@ -200,20 +254,16 @@ export function resolveTarget(command: string[], opts: Record<string, unknown>, 
     fromSnapshot: opts.fromSnapshot as string | undefined,
     timeoutMs: opts.timeout as number,
     authProbe: opts.authProbe as boolean,
+    oauth: opts.oauth as boolean,
   };
+  if (base.oauth && !opts.url) throw new UsageError("--oauth needs --url");
   const sources = [command.length > 0, !!opts.url, !!base.fromSnapshot].filter(Boolean).length;
   if (sources !== 1) {
     throw new UsageError("Specify exactly one of: -- <command>, --url <url>, --from-snapshot <file>");
   }
 
   if (opts.url) {
-    let url: URL;
-    try {
-      url = new URL(opts.url as string);
-    } catch {
-      throw new UsageError(`Invalid --url: ${String(opts.url)}`);
-    }
-    return { ...base, target: { kind: "http", url: url.href, headers: opts.header as Record<string, string> } };
+    return { ...base, target: { kind: "http", url: parseUrl(opts.url as string), headers: opts.header as Record<string, string> } };
   }
 
   if (command.length > 0) {
@@ -235,6 +285,20 @@ export function resolveTarget(command: string[], opts: Record<string, unknown>, 
 
 export function isCommanderExit(err: unknown): err is CommanderError {
   return err instanceof CommanderError;
+}
+
+function parseUrl(value: string): string {
+  try {
+    return new URL(value).href;
+  } catch {
+    throw new UsageError(`Invalid --url: ${value}`);
+  }
+}
+
+function parsePort(value: string): number {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 65535) throw new InvalidArgumentError("must be a port number");
+  return n;
 }
 
 function splitList(value: string): string[] {

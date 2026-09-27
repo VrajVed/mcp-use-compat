@@ -2,7 +2,7 @@
 import { isCommanderExit, parseCommandLine, UsageError, type Invocation } from "./cli.js";
 import { runDiff } from "./diff.js";
 import { explain } from "./explain.js";
-import { listChecks, listClients, run, runCall } from "./run.js";
+import { listChecks, listClients, run, runCall, runOAuthLogin, runOAuthLogout, runOAuthStatus } from "./run.js";
 
 async function dispatch(invocation: Invocation): Promise<number> {
   switch (invocation.command) {
@@ -14,6 +14,12 @@ async function dispatch(invocation: Invocation): Promise<number> {
       return runDiff(invocation.options);
     case "explain":
       return explain(invocation.checkId);
+    case "oauth-login":
+      return runOAuthLogin(invocation.options);
+    case "oauth-status":
+      return runOAuthStatus();
+    case "oauth-logout":
+      return runOAuthLogout(invocation.url);
     case "list-checks":
       return listChecks();
     case "list-clients":
