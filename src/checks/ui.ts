@@ -27,6 +27,28 @@ function mimeFinding(subject: string, mime: string | undefined, where: string): 
   };
 }
 
+const CSP_KEYS = ["connectDomains", "resourceDomains", "frameDomains", "baseUriDomains"];
+const LOOPBACK = /^(https?:\/\/)?(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)(:\d+)?(\/|$)/i;
+
+function uiMeta(item: Record<string, unknown>): Record<string, unknown> {
+  const meta = item._meta;
+  if (typeof meta !== "object" || meta === null) return {};
+  const ui = (meta as Record<string, unknown>).ui;
+  return typeof ui === "object" && ui !== null ? (ui as Record<string, unknown>) : {};
+}
+
+/** All CSP origins a UI resource declares, as [key, origin]. */
+function cspOrigins(resource: Record<string, unknown>): Array<[string, string]> {
+  const csp = uiMeta(resource).csp;
+  if (typeof csp !== "object" || csp === null) return [];
+  return CSP_KEYS.flatMap((key) => {
+    const list = (csp as Record<string, unknown>)[key];
+    return Array.isArray(list) ? list.filter((o): o is string => typeof o === "string").map((o): [string, string] => [key, o]) : [];
+  });
+}
+
+const remoteTarget = (s: ServerSnapshot) => s.target.kind === "http" && !LOOPBACK.test(s.target.url);
+
 export const uiChecks = [
   defineCheck({
     id: "UI_RESOURCE_MIME",
@@ -109,6 +131,73 @@ export const uiChecks = [
             message: `Tool links its UI only via ${used}. Hosts following MCP Apps (e.g. VS Code) read _meta.ui.resourceUri and show no UI.`,
             source: SPEC,
             fix: "Set _meta.ui.resourceUri (you can keep the old key too for older hosts).",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "UI_CSP_LOCAL_ORIGIN",
+    area: "ui",
+    description: "A remote server's UI resources don't point their CSP at localhost",
+    appliesTo: (s) => usesUi(s) && remoteTarget(s),
+    run: (s) =>
+      uiResources(s).flatMap((r): Finding[] => {
+        const local = cspOrigins(r).filter(([, origin]) => LOOPBACK.test(origin));
+        if (local.length === 0) return [];
+        return [
+          {
+            checkId: "UI_CSP_LOCAL_ORIGIN",
+            severity: "warn",
+            subject: itemLabel(r, "uri"),
+            message: `CSP allows ${local.map(([k, o]) => `${o} (${k})`).join(", ")}, but the server is remote; in users' hosts the view would try to reach their own machine.`,
+            source: SPEC,
+            fix: "Derive CSP origins from the public server URL (or configure the production base URL) instead of the dev address.",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "UI_CSP_INSECURE",
+    area: "ui",
+    description: "UI resource CSP origins use HTTPS",
+    appliesTo: usesUi,
+    run: (s) =>
+      uiResources(s).flatMap((r): Finding[] => {
+        const insecure = cspOrigins(r).filter(([, o]) => /^http:\/\//i.test(o) && !LOOPBACK.test(o));
+        if (insecure.length === 0) return [];
+        return [
+          {
+            checkId: "UI_CSP_INSECURE",
+            severity: "warn",
+            subject: itemLabel(r, "uri"),
+            message: `CSP allows plain-HTTP origins ${insecure.map(([, o]) => o).join(", ")}; hosts serve views over HTTPS and browsers block mixed content.`,
+            fix: "Use https:// origins.",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "UI_VISIBILITY_INVALID",
+    area: "ui",
+    description: 'Tool _meta.ui.visibility only uses "model" and "app"',
+    appliesTo: (s) => connected(s) && uiTools(s).length > 0,
+    run: (s) =>
+      items(s, "tools").flatMap((t): Finding[] => {
+        const visibility = uiMeta(t).visibility;
+        if (visibility === undefined) return [];
+        const valid = Array.isArray(visibility) && visibility.length > 0 && visibility.every((v) => v === "model" || v === "app");
+        if (valid) return [];
+        return [
+          {
+            checkId: "UI_VISIBILITY_INVALID",
+            severity: "error",
+            subject: itemLabel(t),
+            message: `_meta.ui.visibility is ${JSON.stringify(visibility)}; it must be a non-empty list of "model" and/or "app".`,
+            source: SPEC,
+            fix: 'Use ["model", "app"] (default), ["app"] for app-only tools, or omit it.',
           },
         ];
       }),

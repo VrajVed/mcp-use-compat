@@ -222,6 +222,18 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     why: "MCP Apps hosts read _meta.ui.resourceUri; the flat key is deprecated and openai/outputTemplate is ChatGPT-only.",
     sources: [APPS, "https://developers.openai.com/apps-sdk/reference"],
   },
+  UI_CSP_LOCAL_ORIGIN: {
+    why: "Hosts sandbox MCP Apps views with the CSP the server declares. Loopback origins from a dev setup leak into production and point users' browsers at their own machine.",
+    sources: [APPS],
+  },
+  UI_CSP_INSECURE: {
+    why: "Hosts serve views over HTTPS; browsers block plain-HTTP subresources as mixed content.",
+    sources: [APPS],
+  },
+  UI_VISIBILITY_INVALID: {
+    why: 'MCP Apps define visibility as a list of "model" and "app"; other values are undefined behaviour across hosts.',
+    sources: [APPS],
+  },
   UI_UNSUPPORTED: {
     why: "Clients that don't render MCP Apps show only the text content of UI tools.",
     features: ["uiResources"],

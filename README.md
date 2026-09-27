@@ -212,6 +212,9 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 | `UI_RESOURCE_SCHEME` | UI resources use the ui:// scheme |
 | `UI_TOOL_LINK_BROKEN` | UI resources that tools link to can be read |
 | `UI_TOOL_LINK_KEY` | Tools link UI with _meta.ui.resourceUri |
+| `UI_CSP_LOCAL_ORIGIN` | A remote server's UI resources don't point their CSP at localhost |
+| `UI_CSP_INSECURE` | UI resource CSP origins use HTTPS |
+| `UI_VISIBILITY_INVALID` | Tool _meta.ui.visibility only uses "model" and "app" |
 | `UI_UNSUPPORTED` | Clients that don't render MCP Apps are flagged when tools rely on UI |
 
 **auth**

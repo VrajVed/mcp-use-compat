@@ -144,3 +144,45 @@ describe("ui checks", () => {
     assert.deepEqual(runCheck(c, s, { profiles: [profile({ supports: { uiResources: yes } })] }), []);
   });
 });
+
+describe("MCP Apps CSP and visibility", () => {
+  const uiCheck = (id: string) => byId(uiChecks, id);
+  const resource = (csp: Record<string, string[]>) => ({
+    name: "view",
+    uri: "ui://app/view",
+    mimeType: "text/html;profile=mcp-app",
+    _meta: { ui: { csp } },
+  });
+  const uiTool = (visibility?: unknown) => ({
+    ...goodTool("show_view"),
+    _meta: { ui: { resourceUri: "ui://app/view", ...(visibility === undefined ? {} : { visibility }) } },
+  });
+  const at = (url: string, csp: Record<string, string[]>, tools = [uiTool()]) =>
+    snapshot({ target: { kind: "http", url }, lists: { tools: list(tools), resources: list([resource(csp)]) } });
+
+  it("UI_CSP_LOCAL_ORIGIN only fires for remote servers", () => {
+    const csp = { connectDomains: ["http://127.0.0.1:3000"], resourceDomains: ["https://fonts.gstatic.com"] };
+    assert.equal(uiCheck("UI_CSP_LOCAL_ORIGIN").appliesTo(at("http://localhost:3000/mcp", csp)), false);
+    const [f] = runCheck(uiCheck("UI_CSP_LOCAL_ORIGIN"), at("https://mcp.example.com/mcp", csp));
+    assert.equal(f.severity, "warn");
+    assert.match(f.message, /http:\/\/127\.0\.0\.1:3000 \(connectDomains\)/);
+    assert.deepEqual(runCheck(uiCheck("UI_CSP_LOCAL_ORIGIN"), at("https://mcp.example.com/mcp", { connectDomains: ["https://api.example.com"] })), []);
+  });
+
+  it("UI_CSP_INSECURE", () => {
+    assert.deepEqual(runCheck(uiCheck("UI_CSP_INSECURE"), at("https://m.example/mcp", { resourceDomains: ["https://cdn.example.com", "http://localhost:5173"] })), []);
+    const [f] = runCheck(uiCheck("UI_CSP_INSECURE"), at("https://m.example/mcp", { frameDomains: ["http://cdn.example.com"] }));
+    assert.match(f.message, /http:\/\/cdn\.example\.com/);
+  });
+
+  it("UI_VISIBILITY_INVALID", () => {
+    const withVisibility = (v: unknown) => at("https://m.example/mcp", {}, [uiTool(v)]);
+    for (const ok of [undefined, ["model", "app"], ["app"]]) {
+      assert.deepEqual(runCheck(uiCheck("UI_VISIBILITY_INVALID"), withVisibility(ok)), [], JSON.stringify(ok));
+    }
+    for (const bad of [[], ["user"], "app"]) {
+      assert.equal(runCheck(uiCheck("UI_VISIBILITY_INVALID"), withVisibility(bad))[0]?.severity, "error", JSON.stringify(bad));
+    }
+  });
+});
+
