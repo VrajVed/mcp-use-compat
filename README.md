@@ -103,7 +103,8 @@ mcpkit --from-snapshot snap.json
 |---|---|---|---|
 | `--url <url>` | `-u` | | Streamable HTTP endpoint instead of a stdio command |
 | `--clients <list>` | `-c` | all | Comma-separated client ids or aliases |
-| `--format <md\|json\|github>` | `-f` | `md` | `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and a job summary |
+| `--format <pretty\|md\|json\|github>` | `-f` | `pretty` in a terminal, `md` otherwise | `pretty` is the coloured terminal view; `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and a job summary |
+| `--verbose` | `-v` | | Also show informational notes in the terminal view |
 | `--out <file>` | `-o` | stdout | Write the report to a file |
 | `--fail-on <spec>` | `-F` | `error` | `error`, `warn`, `none`, or check ids, globs and areas (`TOOL_*,auth`) |
 | `--timeout <ms>` | `-t` | `10000` | Per request; startup gets twice this |
@@ -117,8 +118,11 @@ mcpkit --from-snapshot snap.json
 | `--from-snapshot <file>` | `-r` | | Re-check a saved snapshot instead of connecting |
 | `--no-auth-probe` | `-N` | | Skip the unauthenticated OAuth discovery requests |
 | `--offline` | `-O` | | Don't look up the latest SDK versions |
+| `--no-color` | | | Plain output (also respects `NO_COLOR`; `FORCE_COLOR` forces colour) |
 
 Short flags combine like any CLI, for example `mcpkit -mp -c cursor,vscode -- node dist/server.js`.
+
+In a terminal you get a coloured report with one line per client, grouped findings (the same problem across several clients shows once), clickable sources and a PASS or FAIL line at the end; informational notes are folded away unless you add `-v`. When the output is piped or written with `-o`, it's Markdown instead, so CI logs and files stay clean.
 
 Exit codes: `0` nothing matched `--fail-on`, `1` something did, `2` usage error, `3` the server could not be started or reached.
 

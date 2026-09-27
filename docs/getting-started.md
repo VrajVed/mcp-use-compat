@@ -51,11 +51,14 @@ For servers that use OAuth, see [OAuth-protected servers](oauth.md).
 
 ## Read the result
 
-The default output is a Markdown report:
+In a terminal you get a coloured report:
 
-1. A **summary** table with pass, warn, fail, info and skip counts per client.
-2. **Server issues**: problems that affect every client, with a fix for each.
-3. One section **per client** with issues specific to it, each linking to the source of the client fact.
+1. A header with the server, protocol and what it exposes.
+2. **Clients**: one line per client with its fail, warn and info counts.
+3. **Findings**: each problem once, with the clients it affects, a fix and a link to the source of every client fact. Informational notes are folded away; add `-v` to see them.
+4. A **PASS** or **FAIL** line at the end.
+
+Piped or written to a file (`-o report.md`), the same report comes out as Markdown.
 
 The process exits `0` when nothing matched `--fail-on` (default: any FAIL), `1` when something did, `2` on a usage error and `3` when the server couldn't be started or reached. See [Reading reports](reading-reports.md) for the details.
 

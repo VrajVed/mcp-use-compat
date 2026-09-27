@@ -127,7 +127,8 @@ export async function probeCalls(
   session: RpcSession,
   tools: RawItem[],
   timeoutMs: number,
-  log: (msg: string) => void
+  log: (msg: string) => void,
+  progress?: (stage: string) => void
 ): Promise<CallProbe[]> {
   const safe = tools.filter(safeToProbe).slice(0, MAX_PROBES);
   if (safe.length === 0) {
@@ -137,6 +138,7 @@ export async function probeCalls(
   log(`--probe-calls: calling ${safe.length} read-only tool(s): ${safe.map((t) => t.name).join(", ")}`);
   const results: CallProbe[] = [];
   for (const tool of safe) {
+    progress?.(`calling ${String(tool.name)}`);
     results.push(await callTool(session, tool.name as string, synthesizeArgs(tool.inputSchema), "probe", timeoutMs));
   }
   return results;

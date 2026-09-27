@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- New terminal view, the default in a terminal: colours, one line per client, findings grouped across clients, clickable sources, a progress spinner and a PASS/FAIL verdict. Informational notes are hidden unless you pass `-v`. Piped output and `-o` files stay Markdown.
+- Every command's output restyled to match: `diff`, `upgrade`, `call`, `explain`, `fix`, `oauth`, `checks`, `clients` and error messages.
+- `--no-color` (and `NO_COLOR` / `FORCE_COLOR`).
+- Fix: servers started with a package runner (`npx -y`, `uvx`, `docker`...) no longer pick up the SDK of the folder you ran from.
+- Fix: tools whose names start with "open" are no longer treated as writes.
+- The Markdown report's "Client facts referenced" list no longer repeats general sources for every client.
+
 ## 0.5.0
 
 - Short forms for every option, for example `-u` (`--url`), `-m` (`--version-matrix`), `-p` (`--probe-calls`), `-F` (`--fail-on`), `-H` (`--header`), `-C` (`--cwd`). Short flags can be combined: `mcpkit -mp -- node dist/server.js`.

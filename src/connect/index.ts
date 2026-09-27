@@ -33,6 +33,8 @@ export interface ConnectOptions {
   calls?: Array<{ tool: string; args: Record<string, unknown> }>;
   /** Progress messages (stderr). */
   log?: (msg: string) => void;
+  /** What the connection is doing right now, for a progress display. */
+  progress?: (stage: string) => void;
   /** Skip registry lookups for the project's SDK versions. */
   offline?: boolean;
 }
@@ -65,7 +67,10 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
 
   try {
     const started = performance.now();
+    const progress = options.progress ?? (() => {});
+    progress(target.kind === "stdio" ? `starting ${target.command}` : `connecting to ${target.url}`);
     await session.start();
+    progress("initialize");
     const init = (await session.request(
       "initialize",
       {
@@ -91,12 +96,13 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
     // Call every list method regardless of declared capabilities, so checks can
     // compare what was declared with what actually works.
     for (const kind of Object.keys(LIST_KINDS) as ListKind[]) {
+      progress(`listing ${LIST_KINDS[kind].method.replace("/list", "")}`);
       snapshot.lists[kind] = await listAll(requester(session, timeoutMs), kind);
     }
     snapshot.uiReads = await readUiResources(requester(session, timeoutMs), snapshot.lists.tools?.items ?? []);
     if (options.probeCalls || options.calls?.length) {
       const log = options.log ?? ((msg: string) => console.error(msg));
-      snapshot.calls = options.probeCalls ? await probeCalls(session, snapshot.lists.tools?.items ?? [], timeoutMs, log) : [];
+      snapshot.calls = options.probeCalls ? await probeCalls(session, snapshot.lists.tools?.items ?? [], timeoutMs, log, options.progress) : [];
       for (const { tool, args } of options.calls ?? []) {
         snapshot.calls.push(await callTool(session, tool, args, "explicit", timeoutMs));
       }
@@ -119,6 +125,7 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
     target.kind === "http" ? (tokens ? { ...target.headers, authorization: `Bearer ${tokens.access_token}` } : target.headers) : {};
 
   // Protocol 2026-07-28 runs in its own session (its own process for stdio).
+  options.progress?.("probing protocol 2026-07-28");
   const modern = await probeModern(target, timeoutMs, authHeaders);
   snapshot.modern = modern;
   snapshot.discover = modern.discover;
@@ -142,10 +149,12 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
   }
 
   if (target.kind === "http" && options.authProbe) {
+    options.progress?.("checking OAuth discovery");
     snapshot.http = await probeHttpAuth(target.url, target.headers, timeoutMs);
   }
 
   if (target.kind === "stdio") {
+    options.progress?.("detecting the MCP SDK");
     const project = detectProject(target.command, target.args, target.cwd);
     if (project) {
       if (!options.offline) await lookupLatest(project.sdks);
@@ -154,7 +163,7 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
   }
 
   if (options.versionMatrix && snapshot.connect.ok && snapshot.era !== "modern") {
-    snapshot.versionMatrix = await probeVersions(target, timeoutMs);
+    snapshot.versionMatrix = await probeVersions(target, timeoutMs, options.progress);
   }
 
   return snapshot;
@@ -167,9 +176,10 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
 export const HANDSHAKE_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"] as const;
 
 /** Opens one session per handshake protocol version and records what the server answers. */
-export async function probeVersions(target: ConnectTarget, timeoutMs: number): Promise<VersionProbe[]> {
+export async function probeVersions(target: ConnectTarget, timeoutMs: number, progress?: (stage: string) => void): Promise<VersionProbe[]> {
   const results: VersionProbe[] = [];
   for (const requested of HANDSHAKE_VERSIONS) {
+    progress?.(`version matrix: ${requested}`);
     const transport = makeTransport(target);
     const session = new RpcSession(transport);
     try {

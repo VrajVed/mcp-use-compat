@@ -223,6 +223,8 @@ describe("tool checks", () => {
       runCheck(check("TOOL_ANNOTATIONS_CONFLICT"), withTools({ ...goodTool("place_order"), annotations: { readOnlyHint: false } })),
       []
     );
+    // "open" is ambiguous (open_nodes in the memory server only reads), so it isn't a write verb.
+    assert.deepEqual(runCheck(check("TOOL_ANNOTATIONS_CONFLICT"), withTools({ ...goodTool("open_nodes"), annotations: { readOnlyHint: true } })), []);
   });
 
   it("TOOL_ANNOTATIONS_MISSING", () => {

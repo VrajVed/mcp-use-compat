@@ -49,7 +49,9 @@ export function detectProject(command: string, args: string[], cwd: string): Pro
   };
   for (const a of args) if (!a.startsWith("-") && /[./\\]/.test(a)) addPath(a);
   if (/[/\\]/.test(command)) addPath(command);
-  starts.add(cwd);
+  // A server fetched by a package runner (npx -y some-server, uvx, docker...) has
+  // nothing to do with the current folder; only local file arguments count.
+  if (!isPackageRunner(command, args)) starts.add(cwd);
 
   for (const start of starts) {
     const dir = findUp(start, (d) => MANIFESTS.some((m) => existsSync(join(d, m))));
@@ -63,6 +65,21 @@ export function detectProject(command: string, args: string[], cwd: string): Pro
     if (sdks.length) return { dir, sdks };
   }
   return undefined;
+}
+
+const RUNNERS = new Set(["npx", "pnpx", "bunx", "uvx", "docker", "podman"]);
+
+/** True when the command downloads and runs a published package or image. */
+export function isPackageRunner(command: string, args: string[]): boolean {
+  const base = (command.split(/[/\\]/).pop() ?? "").replace(/\.(cmd|exe)$/i, "");
+  const [a, b] = args;
+  return (
+    RUNNERS.has(base) ||
+    ((base === "pnpm" || base === "yarn") && a === "dlx") ||
+    (base === "npm" && (a === "exec" || a === "x")) ||
+    (base === "uv" && a === "tool" && b === "run") ||
+    (base === "pipx" && a === "run")
+  );
 }
 
 function findUp(start: string, match: (dir: string) => boolean): string | undefined {

@@ -16,7 +16,7 @@ const READ_VERBS = new Set(
   "get list search find read fetch query describe show lookup count check view browse retrieve inspect preview download export".split(" ")
 );
 const WRITE_VERBS = new Set(
-  "create add update edit delete remove place cancel modify send post write set move rename execute run deploy transfer buy sell pay charge drop insert upsert archive publish submit approve reject revoke grant invite kill stop start restart reset clear purge destroy close open merge push".split(" ")
+  "create add update edit delete remove place cancel modify send post write set move rename execute run deploy transfer buy sell pay charge drop insert upsert archive publish submit approve reject revoke grant invite kill stop start restart reset clear purge destroy close merge push".split(" ")
 );
 
 /** The first word of a tool name, lowercased: get_user → get, createEvent → create, files.read → files. */

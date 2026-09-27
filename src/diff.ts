@@ -4,6 +4,7 @@ import { UsageError, type DiffOptions } from "./cli.js";
 import { evaluate } from "./evaluate.js";
 import { ALL_PROFILES } from "./profiles/index.js";
 import { cell } from "./reporters/escape.js";
+import { colorEnabled, err, padEnd, painter, rule, SYM, width, wrap, type Painter } from "./term.js";
 import type { RawItem, ServerSnapshot } from "./snapshot.js";
 
 export type ChangeLevel = "breaking" | "change" | "notable";
@@ -261,6 +262,31 @@ export function renderDiffGithub(report: DiffReport): string {
     .concat(report.changes.some((c) => c.level !== "change") ? "\n" : "");
 }
 
+/** Terminal rendering: grouped by level, coloured, one line per change. */
+export function renderDiffPretty(report: DiffReport, p: Painter, w: number): string {
+  const lines = ["", `  ${p.bold(p.cyan("diff"))} ${p.gray(`${report.before} ${SYM.arrow} ${report.after}`)}`, ""];
+  if (report.changes.length === 0) return lines.concat(`  ${p.green(`${SYM.pass} No changes.`)}`, "").join("\n") + "\n";
+  const styles: Record<ChangeLevel, { title: string; mark: string; paint: (s: string) => string }> = {
+    breaking: { title: "breaking", mark: SYM.fail, paint: p.red },
+    change: { title: "non-breaking", mark: "+", paint: p.green },
+    notable: { title: "notable", mark: SYM.warn, paint: p.yellow },
+  };
+  for (const level of ["breaking", "change", "notable"] as ChangeLevel[]) {
+    const changes = report.changes.filter((c) => c.level === level);
+    if (!changes.length) continue;
+    const st = styles[level];
+    lines.push("  " + rule(p, st.title, w - 2, String(changes.length)), "");
+    const subjectWidth = Math.min(Math.max(...changes.map((c) => c.subject.length)) + 2, 34);
+    for (const c of changes) {
+      const subject = c.subject.length > subjectWidth - 2 ? c.subject.slice(0, subjectWidth - 3) + "…" : c.subject;
+      const indent = " ".repeat(4 + 9 + subjectWidth);
+      lines.push(`  ${st.paint(st.mark)} ${p.gray(c.kind.padEnd(8))} ${padEnd(p.bold(subject), subjectWidth)}${wrap(c.message, w - indent.length - 2, indent)}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n") + "\n";
+}
+
 export function runDiff(options: DiffOptions): number {
   const report = buildDiff(options.before, options.after);
   const output =
@@ -268,16 +294,21 @@ export function runDiff(options: DiffOptions): number {
       ? JSON.stringify(report, null, 2) + "\n"
       : options.format === "github"
         ? renderDiffGithub(report)
-        : renderDiffMarkdown(report);
+        : options.format === "pretty"
+          ? renderDiffPretty(report, painter(!options.out && colorEnabled(process.stdout)), width())
+          : renderDiffMarkdown(report);
   if (options.out) writeFileSync(options.out, output);
   else process.stdout.write(output);
 
   const failed =
     options.failOn === "any" ? report.changes.length > 0 : options.failOn === "breaking" ? report.summary.breaking > 0 : false;
+  const p = err();
+  const { breaking, change, notable } = report.summary;
+  const tally = `${breaking} breaking ${SYM.bullet} ${change} non-breaking ${SYM.bullet} ${notable} notable`;
   console.error(
     failed
-      ? `\n✖ ${report.summary.breaking} breaking change(s)${options.failOn === "any" ? ` and ${report.changes.length - report.summary.breaking} other change(s)` : ""}.`
-      : `\n✔ No changes matched --fail-on=${options.failOn}.`
+      ? `\n${p.bgRed(p.black(p.bold(" FAIL ")))} ${tally}  ${p.gray(`fail-on: ${options.failOn}`)}`
+      : `\n${p.bgGreen(p.black(p.bold(" PASS ")))} ${tally}  ${p.gray(`nothing matched --fail-on=${options.failOn}`)}`
   );
   return failed ? 1 : 0;
 }

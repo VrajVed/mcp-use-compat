@@ -98,7 +98,9 @@ function limitationSources(report: Report): string[] {
   const seen = new Set<string>();
   for (const c of report.clients) {
     for (const r of c.rows) {
-      if (r.source && (r.status === "warn" || r.status === "fail" || r.status === "info")) {
+      // Only client-specific facts; general findings' sources would repeat under every client.
+      const clientSpecific = report.findings.some((f) => f.client === c.client && f.checkId === r.checkId);
+      if (clientSpecific && r.source && (r.status === "warn" || r.status === "fail" || r.status === "info")) {
         seen.add(`${c.displayName}: \`${r.checkId}\`, ${r.source}`);
       }
     }

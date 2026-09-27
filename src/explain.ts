@@ -3,9 +3,10 @@ import { EXPLANATIONS } from "./checks/explanations.js";
 import { UsageError } from "./cli.js";
 import { ALL_PROFILES } from "./profiles/index.js";
 import type { Sourced } from "./profiles/types.js";
+import { link, out, painter, width, wrap, type Painter } from "./term.js";
 
 /** Renders the explanation for one check (id matching is case-insensitive). */
-export function renderExplanation(checkId: string): string {
+export function renderExplanation(checkId: string, p: Painter = painter(false)): string {
   const id = checkId.toUpperCase();
   const check = ALL_CHECKS.find((c) => c.id === id);
   if (!check) {
@@ -17,31 +18,31 @@ export function renderExplanation(checkId: string): string {
   }
 
   const e = EXPLANATIONS[id];
-  const lines = [`${check.id}  (${check.area})`, "", check.description + ".", ""];
+  const lines = [`${p.bold(p.cyan(check.id))}  ${p.gray(`(${check.area})`)}`, "", p.bold(check.description + "."), ""];
   if (e) {
-    lines.push(e.why, "");
-    if (e.sources?.length) lines.push("Sources:", ...e.sources.map((s) => `  ${s}`), "");
+    lines.push(wrap(e.why, width() - 2), "");
+    if (e.sources?.length) lines.push(p.magenta("Sources:"), ...e.sources.map((s) => `  ${link(p, s, s)}`), "");
 
     const facts: string[] = [];
-    for (const p of ALL_PROFILES) {
+    for (const profile of ALL_PROFILES) {
       for (const key of e.limits ?? []) {
-        const fact = p.limits[key] as Sourced<unknown> | undefined;
-        if (fact) facts.push(`  ${p.displayName}: ${key} = ${format(fact.value)}  (${fact.source}, ${fact.verifiedOn})`);
+        const fact = profile.limits[key] as Sourced<unknown> | undefined;
+        if (fact) facts.push(`  ${p.bold(profile.displayName)}: ${key} = ${p.yellow(format(fact.value))}  ${p.gray(`(${link(p, fact.source, fact.source)}, ${fact.verifiedOn})`)}`);
       }
       for (const feature of e.features ?? []) {
-        const fact = p.supports[feature];
-        if (fact) facts.push(`  ${p.displayName}: ${feature} = ${format(fact.value)}  (${fact.source}, ${fact.verifiedOn})`);
+        const fact = profile.supports[feature];
+        if (fact) facts.push(`  ${p.bold(profile.displayName)}: ${feature} = ${p.yellow(format(fact.value))}  ${p.gray(`(${link(p, fact.source, fact.source)}, ${fact.verifiedOn})`)}`);
       }
     }
     if (e.limits?.length || e.features?.length) {
-      lines.push("Client facts used:", ...(facts.length ? facts : ["  (no client has a sourced value yet, so the check never fires)"]), "");
+      lines.push(p.magenta("Client facts used:"), ...(facts.length ? facts : ["  (no client has a sourced value yet, so the check never fires)"]), "");
     }
   }
   return lines.join("\n");
 }
 
 export function explain(checkId: string): number {
-  process.stdout.write(renderExplanation(checkId));
+  process.stdout.write("\n" + renderExplanation(checkId, out()).replace(/^(?=.)/gm, "  ") + "\n");
   return 0;
 }
 

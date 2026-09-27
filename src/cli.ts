@@ -2,7 +2,7 @@ import { Command, CommanderError, InvalidArgumentError } from "commander";
 import type { ConnectTarget } from "./connect/index.js";
 import { VERSION } from "./version.js";
 
-export type OutputFormat = "md" | "json" | "github";
+export type OutputFormat = "pretty" | "md" | "json" | "github";
 
 /** Options shared by every command that talks to a server. */
 export interface TargetOptions {
@@ -29,6 +29,8 @@ export interface OAuthLoginOptions {
 
 export interface RunOptions extends TargetOptions {
   saveSnapshot?: string;
+  /** Also show informational notes (terminal format). */
+  verbose?: boolean;
   versionMatrix: boolean;
   probeCalls: boolean;
   clients?: string[];
@@ -42,7 +44,7 @@ export interface RunOptions extends TargetOptions {
 export interface DiffOptions {
   before: string;
   after: string;
-  format: Exclude<OutputFormat, "github"> | "github";
+  format: OutputFormat;
   out?: string;
   failOn: "breaking" | "any" | "none";
 }
@@ -50,7 +52,7 @@ export interface DiffOptions {
 export interface CallOptions extends TargetOptions {
   tool: string;
   args: Record<string, unknown>;
-  format: "md" | "json";
+  format: "pretty" | "md" | "json";
 }
 
 export interface UpgradeOptions {
@@ -112,8 +114,9 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .option("-m, --version-matrix", "also initialize with every protocol version (one session each)", false)
     .option("-p, --probe-calls", "call tools that declare readOnlyHint: true, with arguments generated from their schema", false)
     .option("-c, --clients <list>", "comma-separated client ids (default: all)", splitList)
-    .option("-f, --format <format>", "md | json | github", parseFormat, "md")
+    .option("-f, --format <format>", "pretty | md | json | github (default: pretty in a terminal, md otherwise)", parseFormat)
     .option("-o, --out <file>", "write the report to a file instead of stdout")
+    .option("-v, --verbose", "also show informational notes", false)
     .option("-F, --fail-on <spec>", "error | warn | none | comma list of check ids/areas", "error")
     .option("--list-checks", "same as the list-checks command", false)
     .option("--list-clients", "same as the list-clients command", false)
@@ -123,8 +126,9 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
         versionMatrix: opts.versionMatrix as boolean,
         probeCalls: opts.probeCalls as boolean,
         clients: opts.clients as string[] | undefined,
-        format: opts.format as OutputFormat,
+        format: (opts.format as OutputFormat | undefined) ?? autoFormat(opts.out as string | undefined),
         out: opts.out as string | undefined,
+        verbose: opts.verbose as boolean,
         failOn: opts.failOn as string,
         listChecks: opts.listChecks as boolean,
         listClients: opts.listClients as boolean,
@@ -139,7 +143,7 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .description("compare two snapshots and classify tool-surface changes")
     .argument("<before>", "snapshot (--save-snapshot) from the old version")
     .argument("<after>", "snapshot (--save-snapshot) from the new version")
-    .option("-f, --format <format>", "md | json | github", parseFormat, "md")
+    .option("-f, --format <format>", "pretty | md | json | github (default: pretty in a terminal, md otherwise)", parseFormat)
     .option("-o, --out <file>", "write the diff to a file instead of stdout")
     .option("-F, --fail-on <level>", "breaking | any | none", parseDiffFailOn, "breaking")
     .action((before: string, after: string, opts: Record<string, unknown>) => {
@@ -148,7 +152,7 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
         options: {
           before,
           after,
-          format: opts.format as OutputFormat,
+          format: (opts.format as OutputFormat | undefined) ?? autoFormat(opts.out as string | undefined),
           out: opts.out as string | undefined,
           failOn: opts.failOn as DiffOptions["failOn"],
         },
@@ -163,15 +167,15 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .argument("[command...]", "stdio server command, after --");
   addTargetOptions(callCommand)
     .option("-a, --args <json>", "tool arguments as JSON (default: {})", parseJsonObject, {})
-    .option("-f, --format <format>", "md | json", parseFormat, "md")
+    .option("-f, --format <format>", "pretty | md | json (default: pretty in a terminal, md otherwise)", parseFormat)
     .action((tool: string, command: string[], opts: Record<string, unknown>) => {
-      if (opts.format === "github") throw new UsageError("call supports --format md or json");
+      if (opts.format === "github") throw new UsageError("call supports --format pretty, md or json");
       result = {
         command: "call",
         options: {
           tool,
           args: opts.args as Record<string, unknown>,
-          format: opts.format as "md" | "json",
+          format: (opts.format as "pretty" | "md" | "json" | undefined) ?? (autoFormat(undefined) as "pretty" | "md"),
           ...resolveTarget(command, opts, warn),
         },
       };
@@ -295,6 +299,7 @@ export function parseArgs(argv: string[], warn: Warn = console.error): RunOption
     return {
       format: "md",
       failOn: "error",
+      verbose: false,
       versionMatrix: false,
       probeCalls: false,
       timeoutMs: 10000,
@@ -383,8 +388,14 @@ function splitList(value: string): string[] {
 
 function parseFormat(value: string): OutputFormat {
   if (value === "markdown") return "md";
-  if (value === "md" || value === "json" || value === "github") return value;
-  throw new InvalidArgumentError("must be md, json or github");
+  if (value === "text" || value === "terminal") return "pretty";
+  if (value === "pretty" || value === "md" || value === "json" || value === "github") return value;
+  throw new InvalidArgumentError("must be pretty, md, json or github");
+}
+
+/** Terminal output for people, Markdown when piped or written to a file. */
+export function autoFormat(out: string | undefined): OutputFormat {
+  return !out && process.stdout.isTTY ? "pretty" : "md";
 }
 
 function parseJsonObject(value: string): Record<string, unknown> {

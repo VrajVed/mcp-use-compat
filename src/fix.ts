@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { SPEC_TOOL_NAME } from "./checks/tools.js";
 import { UsageError, type FixOptions } from "./cli.js";
+import { err, SYM, width, wrap } from "./term.js";
 import type { RawItem } from "./snapshot.js";
 
 export interface FixChange {
@@ -112,18 +113,28 @@ export function runFix(options: FixOptions): number {
   if (options.out) writeFileSync(options.out, output);
   else if (options.format === "json") process.stdout.write(output);
 
+  const p = err();
   if (changes.length === 0) {
-    console.error("✔ Nothing to fix mechanically.");
-  } else {
-    console.error(`${changes.length} change(s)${options.out ? ` written to ${options.out}` : ""}:`);
-    for (const c of changes) console.error(`  ${c.tool}: ${c.change}${c.todo ? `\n    → TODO: ${c.todo}` : ""}`);
-    console.error(
+    console.error(`${p.green(SYM.pass)} Nothing to fix mechanically.`);
+    return 0;
+  }
+  const w = width(process.stderr);
+  console.error(`\n  ${p.bold(p.cyan("fix"))} ${p.gray(`${changes.length} change(s)${options.out ? ` ${SYM.arrow} ${options.out}` : ""}`)}\n`);
+  let last = "";
+  for (const c of changes) {
+    if (c.tool !== last) console.error(`  ${p.bold(c.tool)}`);
+    last = c.tool;
+    console.error(`    ${p.green("+")} ${wrap(c.change, w - 8, "      ")}`);
+    if (c.todo) console.error(`      ${p.yellow("todo")} ${wrap(c.todo, w - 13, "           ")}`);
+  }
+  console.error(
+    p.gray(
       options.out
         ? "\nApply these to your server code; the corrected definitions are in the output file."
         : options.format === "json"
           ? "\nApply these to your server code; the corrected definitions are on stdout."
-          : "\nApply these to your server code. Use --json or --out <file> to get the corrected definitions."
-    );
-  }
+          : "\nApply these to your server code. Use -j or -o <file> to get the corrected definitions."
+    )
+  );
   return 0;
 }

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { compareVersions, detectProject, pyprojectRequirement, requirementsLine, upgradeCommand, type DetectedSdk } from "../../src/project.js";
+import { compareVersions, detectProject, isPackageRunner, pyprojectRequirement, requirementsLine, upgradeCommand, type DetectedSdk } from "../../src/project.js";
 import { adviseUpgrade, SAFE_VERSION } from "../../src/sdk-facts.js";
 import { applyPlan, bumpPin, planUpgrades } from "../../src/upgrade.js";
 
@@ -54,6 +54,27 @@ describe("detectProject", () => {
     assert.deepEqual(detectProject("go", ["run", "."], go)?.sdks.map((s) => [s.name, s.installed]), [["github.com/mark3labs/mcp-go", "v0.30.0"]]);
     const rust = project({ "Cargo.toml": '[dependencies]\nrmcp = { version = "0.8", features = ["server"] }\n', "Cargo.lock": 'name = "rmcp"\nversion = "0.8.5"\n' });
     assert.deepEqual(detectProject("cargo", ["run"], rust)?.sdks.map((s) => [s.name, s.declared, s.installed]), [["rmcp", "0.8", "0.8.5"]]);
+  });
+
+  it("ignores the current folder for servers fetched by a package runner", () => {
+    const dir = project({
+      "package.json": JSON.stringify({ dependencies: { "@modelcontextprotocol/sdk": "^1.30.0" } }),
+      "src/server.ts": "",
+    });
+    assert.equal(detectProject("npx", ["-y", "@modelcontextprotocol/server-memory"], dir), undefined);
+    assert.equal(detectProject("uvx", ["mcp-server-git"], dir), undefined);
+    // npx running a local file is still local code.
+    assert.equal(detectProject("npx", ["tsx", "src/server.ts"], dir)?.dir, dir);
+    assert.equal(detectProject("node", ["src/server.ts"], dir)?.dir, dir);
+  });
+
+  it("isPackageRunner", () => {
+    for (const [cmd, args] of [["npx", ["-y", "x"]], ["/usr/bin/bunx", ["x"]], ["pnpm", ["dlx", "x"]], ["npm", ["exec", "x"]], ["uv", ["tool", "run", "x"]], ["pipx", ["run", "x"]], ["docker", ["run", "img"]]] as const) {
+      assert.equal(isPackageRunner(cmd, [...args]), true, cmd);
+    }
+    for (const [cmd, args] of [["node", ["s.js"]], ["uv", ["run", "s.py"]], ["pnpm", ["start"]]] as const) {
+      assert.equal(isPackageRunner(cmd, [...args]), false, cmd);
+    }
   });
 
   it("returns undefined when no MCP SDK is present", () => {

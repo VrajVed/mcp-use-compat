@@ -4,6 +4,7 @@ import { runDiff } from "./diff.js";
 import { explain } from "./explain.js";
 import { runFix } from "./fix.js";
 import { runUpgrade } from "./upgrade.js";
+import { err as stderrPainter } from "./term.js";
 import { listChecks, listClients, run, runCall, runOAuthLogin, runOAuthLogout, runOAuthStatus } from "./run.js";
 
 async function dispatch(invocation: Invocation): Promise<number> {
@@ -34,12 +35,23 @@ async function dispatch(invocation: Invocation): Promise<number> {
 }
 
 async function main(): Promise<number> {
+  const argv = process.argv.slice(2);
+  // --no-color works with every command (but not after --, where it belongs to the server).
+  const end = argv.includes("--") ? argv.indexOf("--") : argv.length;
+  const noColor = argv.slice(0, end).indexOf("--no-color");
+  if (noColor !== -1) {
+    // An explicit flag beats FORCE_COLOR from the environment.
+    delete process.env.FORCE_COLOR;
+    process.env.NO_COLOR = "1";
+    argv.splice(noColor, 1);
+  }
   try {
-    return await dispatch(parseCommandLine(process.argv.slice(2)));
+    return await dispatch(parseCommandLine(argv));
   } catch (err) {
     if (isCommanderExit(err)) return err.exitCode === 0 ? 0 : 2;
     if (err instanceof UsageError) {
-      console.error(`error: ${err.message}\nRun with --help for usage.`);
+      const p = stderrPainter();
+      console.error(`${p.red(p.bold("error"))} ${err.message}\n${p.gray("Run with --help for usage.")}`);
       return 2;
     }
     throw err;

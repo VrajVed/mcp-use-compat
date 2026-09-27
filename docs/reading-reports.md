@@ -34,10 +34,13 @@ When the server can't be started or reached, the exit code is `3` regardless (un
 ## Output formats
 
 ```bash
---format md       # Markdown (default), good for reading and PR comments
+--format pretty   # coloured terminal view (default in a terminal)
+--format md       # Markdown (default when piped or with --out), good for PR comments
 --format json     # machine-readable; follows schema/report.schema.json
 --format github   # GitHub Actions annotations, plus a Markdown job summary
 --out report.md   # write to a file instead of stdout
+-v                # terminal view: also show informational notes
+--no-color        # no colours (NO_COLOR works too)
 ```
 
 The JSON report contains:
