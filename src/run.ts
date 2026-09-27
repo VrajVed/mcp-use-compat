@@ -1,7 +1,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { ALL_CHECKS } from "./checks/index.js";
 import type { CheckArea } from "./checks/types.js";
-import { UsageError, type RunOptions } from "./cli.js";
+import { UsageError, type RunOptions, type TargetOptions } from "./cli.js";
 import { connect } from "./connect/index.js";
 import { evaluate } from "./evaluate.js";
 import { EXIT, exitCode, failures, parsePolicy, PolicyError } from "./policy.js";
@@ -11,7 +11,7 @@ import { loadSnapshot, saveSnapshot, type ServerSnapshot } from "./snapshot.js";
 
 const AREAS = [...new Set(ALL_CHECKS.map((c) => c.area))] as CheckArea[];
 
-/** Returns the process exit code. */
+/** Runs the check command. Returns the process exit code. */
 export async function run(options: RunOptions): Promise<number> {
   if (options.listChecks) return listChecks();
   if (options.listClients) return listClients();
@@ -50,12 +50,17 @@ export async function run(options: RunOptions): Promise<number> {
   return code;
 }
 
-async function getSnapshot(options: RunOptions): Promise<ServerSnapshot> {
+export async function getSnapshot(options: TargetOptions & { versionMatrix?: boolean }): Promise<ServerSnapshot> {
   if (options.fromSnapshot) return loadSnapshot(options.fromSnapshot);
-  return connect({ target: options.target!, timeoutMs: options.timeoutMs, authProbe: options.authProbe });
+  return connect({
+    target: options.target!,
+    timeoutMs: options.timeoutMs,
+    authProbe: options.authProbe,
+    versionMatrix: options.versionMatrix,
+  });
 }
 
-function listChecks(): number {
+export function listChecks(): number {
   for (const area of AREAS) {
     console.log(`\n${area}`);
     for (const c of ALL_CHECKS.filter((c) => c.area === area)) console.log(`  ${c.id.padEnd(36)} ${c.description}`);
@@ -63,7 +68,7 @@ function listChecks(): number {
   return EXIT.ok;
 }
 
-function listClients(): number {
+export function listClients(): number {
   if (ALL_PROFILES.length === 0) console.log("No client profiles yet.");
   for (const p of ALL_PROFILES) {
     const dates = [

@@ -41,6 +41,17 @@ export interface ServerSnapshot {
   discover?: DiscoverProbe;
   /** resources/read results for UI resources that tools link to, keyed by URI. */
   uiReads?: Record<string, UiRead>;
+  /** One initialize per protocol version (--version-matrix). */
+  versionMatrix?: VersionProbe[];
+}
+
+export interface VersionProbe {
+  requested: string;
+  ok: boolean;
+  negotiated?: string;
+  error?: string;
+  /** Sorted tool names listed in that session. */
+  tools?: string[];
 }
 
 export interface UiRead {

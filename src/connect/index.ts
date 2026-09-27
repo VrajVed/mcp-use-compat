@@ -9,6 +9,7 @@ import {
   type RawItem,
   type ServerSnapshot,
   type UiRead,
+  type VersionProbe,
 } from "../snapshot.js";
 import { TOOL_NAME, VERSION } from "../version.js";
 import { linkedUiUris } from "../ui.js";
@@ -26,6 +27,14 @@ export interface ConnectOptions {
   target: ConnectTarget;
   timeoutMs: number;
   authProbe: boolean;
+  /** Also initialize once per SDK-supported protocol version (one extra session each). */
+  versionMatrix?: boolean;
+}
+
+function makeTransport(target: ConnectTarget): Transport {
+  return target.kind === "stdio"
+    ? new CapturingStdioTransport(target)
+    : new StreamableHTTPClientTransport(new URL(target.url), { requestInit: { headers: target.headers } });
 }
 
 export async function connect(options: ConnectOptions): Promise<ServerSnapshot> {
@@ -42,10 +51,7 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
     io: { stdoutNonJsonLines: [], stderrTail: [] },
   };
 
-  const transport: Transport =
-    target.kind === "stdio"
-      ? new CapturingStdioTransport(target)
-      : new StreamableHTTPClientTransport(new URL(target.url), { requestInit: { headers: target.headers } });
+  const transport = makeTransport(target);
   const session = new RpcSession(transport);
 
   try {
@@ -101,7 +107,49 @@ export async function connect(options: ConnectOptions): Promise<ServerSnapshot> 
     if (options.authProbe) snapshot.http = await probeHttpAuth(target.url, target.headers, timeoutMs);
   }
 
+  if (options.versionMatrix && snapshot.connect.ok) {
+    snapshot.versionMatrix = await probeVersions(target, timeoutMs);
+  }
+
   return snapshot;
+}
+
+/**
+ * Published protocol revisions that use the initialize handshake. 2024-10-07 is in
+ * the SDK's list but was never published, so it isn't probed.
+ */
+export const HANDSHAKE_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"] as const;
+
+/** Opens one session per handshake protocol version and records what the server answers. */
+export async function probeVersions(target: ConnectTarget, timeoutMs: number): Promise<VersionProbe[]> {
+  const results: VersionProbe[] = [];
+  for (const requested of HANDSHAKE_VERSIONS) {
+    const transport = makeTransport(target);
+    const session = new RpcSession(transport);
+    try {
+      await session.start();
+      const init = (await session.request(
+        "initialize",
+        { protocolVersion: requested, capabilities: {}, clientInfo: { name: TOOL_NAME, version: VERSION } },
+        timeoutMs * 2
+      )) as Record<string, unknown> | undefined;
+      const negotiated = typeof init?.protocolVersion === "string" ? init.protocolVersion : undefined;
+      if (negotiated) transport.setProtocolVersion?.(negotiated);
+      await session.notify("notifications/initialized");
+      const tools = await listAll(session, "tools", timeoutMs);
+      results.push({
+        requested,
+        ok: true,
+        negotiated,
+        tools: tools.ok ? tools.items.flatMap((t) => (typeof t.name === "string" ? [t.name] : [])).sort() : undefined,
+      });
+    } catch (err) {
+      results.push({ requested, ok: false, error: describeError(err, transport) });
+    } finally {
+      await session.close().catch(() => {});
+    }
+  }
+  return results;
 }
 
 async function listAll(session: RpcSession, kind: ListKind, timeoutMs: number): Promise<ListResult> {

@@ -38,7 +38,27 @@ npx mcp-use-compat --clients cursor,vscode -- node dist/server.js
 # Save what the server exposed, re-check it later without running it
 npx mcp-use-compat --save-snapshot snap.json -- node dist/server.js
 npx mcp-use-compat --from-snapshot snap.json
+
+# Also try every published protocol version
+npx mcp-use-compat --version-matrix -- node dist/server.js
 ```
+
+### Other commands
+
+```bash
+# Compare two snapshots: breaking vs non-breaking changes, plus new compatibility failures
+npx mcp-use-compat check --save-snapshot before.json -- node old/server.js
+npx mcp-use-compat check --save-snapshot after.json -- node dist/server.js
+npx mcp-use-compat diff before.json after.json          # exits 1 on breaking changes
+
+# Why does a check exist, and which client facts does it use?
+npx mcp-use-compat explain TOOL_NAME_TOO_LONG
+
+npx mcp-use-compat list-checks
+npx mcp-use-compat list-clients
+```
+
+`diff` treats as breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
 
 | Option | Default | |
 |---|---|---|
@@ -53,13 +73,13 @@ npx mcp-use-compat --from-snapshot snap.json
 | `--cwd <dir>` | `.` | Working directory for the stdio server |
 | `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
 | `--save-snapshot <file>` / `--from-snapshot <file>` | | Save or re-check a snapshot |
-| `--list-checks` / `--list-clients` | | Print checks or client profiles |
+| `--version-matrix` | | Also `initialize` with each published protocol version (2024-11-05 to 2025-11-25), one session each |
 
 Exit codes: `0` nothing matched `--fail-on` · `1` something did · `2` usage error · `3` the server could not be started or reached.
 
 ### What it sends to your server
 
-`initialize`, the `tools`, `resources`, resource template and `prompts` list methods, `resources/read` for UI resources that tools link to, and `server/discover`. Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known metadata URLs. It never calls tools.
+`initialize`, the `tools`, `resources`, resource template and `prompts` list methods, `resources/read` for UI resources that tools link to, and `server/discover` (with `--version-matrix`, one extra `initialize` + `tools/list` per protocol version). Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known metadata URLs. It never calls tools.
 
 ## In CI
 
@@ -119,6 +139,8 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 | `PROTOCOL_DISCOVER_MISSING` | Server implements server/discover (required from protocol 2026-07-28) |
 | `PROTOCOL_VERSION_UNSUPPORTED` | Negotiated protocol version is one the SDK supports |
 | `PROTOCOL_VERSION_OLD` | Server speaks the latest protocol version |
+| `PROTOCOL_VERSIONS_REJECTED` | Server handles every published protocol version clients may request (--version-matrix) |
+| `PROTOCOL_VERSION_SURFACE_DIFFERS` | The tool list is the same whichever protocol version a client negotiates |
 | `PROTOCOL_SERVERINFO_MISSING` | initialize returns serverInfo with name and version |
 | `PROTOCOL_CAPABILITY_UNDECLARED` | Every feature the server serves is declared in capabilities |
 | `PROTOCOL_CAPABILITY_BROKEN` | Every declared capability's list method works |
@@ -139,7 +161,8 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 | `TOOL_DESCRIPTION_SHORT` | Tool descriptions are at least 20 characters |
 | `TOOL_DESCRIPTION_TRUNCATED` | Tool descriptions and server instructions fit each client's length limit |
 | `TOOL_STRUCTURED_OUTPUT_HANDLING` | Notes how each client passes structured tool output to the model |
-| `TOOL_ANNOTATIONS_CONFLICT` | Tool annotations are consistent |
+| `TOOL_ANNOTATIONS_CONFLICT` | Tool annotations are consistent with each other and with the tool's name |
+| `TOOL_ANNOTATIONS_MISSING` | Read-only tools declare readOnlyHint |
 
 **schema**
 
@@ -201,7 +224,7 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 
 ## Protocol versions
 
-The checks run over the `initialize` handshake (protocol 2025-11-25 and earlier), which is what current clients use. For the stateless 2026-07-28 revision, the tool calls `server/discover` and reports servers that only speak the new revision; full checks over the new revision are planned.
+The checks run over the `initialize` handshake, which is what current clients use. `--version-matrix` also tries each published handshake revision (2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25) and reports versions the server rejects, answers incorrectly, or serves different tools on. For the stateless 2026-07-28 revision, the tool calls `server/discover` and reports servers that only speak the new revision; full checks over the new revision are in progress.
 
 ## Development
 

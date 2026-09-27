@@ -186,6 +186,35 @@ describe("tool checks", () => {
       1
     );
   });
+
+  it("TOOL_ANNOTATIONS_CONFLICT flags write-sounding tools marked read-only", () => {
+    const [f] = runCheck(
+      check("TOOL_ANNOTATIONS_CONFLICT"),
+      withTools({ ...goodTool("place_order"), annotations: { readOnlyHint: true } })
+    );
+    assert.equal(f.severity, "warn");
+    assert.match(f.message, /"place"/);
+    assert.deepEqual(
+      runCheck(check("TOOL_ANNOTATIONS_CONFLICT"), withTools({ ...goodTool("place_order"), annotations: { readOnlyHint: false } })),
+      []
+    );
+  });
+
+  it("TOOL_ANNOTATIONS_MISSING", () => {
+    assert.deepEqual(
+      runCheck(check("TOOL_ANNOTATIONS_MISSING"), withTools({ ...goodTool("get_quote"), annotations: { readOnlyHint: true } })),
+      []
+    );
+    // Writes without annotations are safe (clients assume destructive), so only reads are reported.
+    const [f] = runCheck(
+      check("TOOL_ANNOTATIONS_MISSING"),
+      withTools(goodTool("get_holdings"), goodTool("listOrders"), goodTool("place_order"), goodTool("sequentialthinking"))
+    );
+    assert.equal(f.severity, "info");
+    assert.equal(f.subject, "get_holdings, listOrders");
+    assert.match(f.message, /no annotations at all/);
+  });
+
 });
 
 describe("SDK behaviour our messages rely on", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseArgs, UsageError } from "../src/cli.js";
+import { parseArgs, parseCommandLine, UsageError } from "../src/cli.js";
 
 const quiet = () => {};
 
@@ -60,3 +60,37 @@ describe("parseArgs", () => {
     assert.equal(parseArgs(["--list-checks"], quiet).listChecks, true);
   });
 });
+
+describe("parseCommandLine (subcommands)", () => {
+  it("defaults to check, keeping v0.2 syntax", () => {
+    assert.equal(parseCommandLine(["--", "node", "s.js"], quiet).command, "check");
+    assert.equal(parseCommandLine(["--url", "https://x.example/mcp"], quiet).command, "check");
+    const explicit = parseCommandLine(["check", "--version-matrix", "--", "node", "s.js"], quiet);
+    assert.equal(explicit.command === "check" && explicit.options.versionMatrix, true);
+  });
+
+  it("parses diff with defaults and options", () => {
+    assert.deepEqual(parseCommandLine(["diff", "a.json", "b.json"], quiet), {
+      command: "diff",
+      options: { before: "a.json", after: "b.json", format: "md", out: undefined, failOn: "breaking" },
+    });
+    const d = parseCommandLine(["diff", "a.json", "b.json", "--fail-on", "any", "-f", "json"], quiet);
+    assert.equal(d.command === "diff" && d.options.failOn, "any");
+    assert.throws(() => parseCommandLine(["diff", "a.json", "b.json", "--fail-on", "maybe"], quiet));
+  });
+
+  it("parses explain and the list commands, including the old flags", () => {
+    assert.deepEqual(parseCommandLine(["explain", "tool_name_too_long"], quiet), {
+      command: "explain",
+      checkId: "tool_name_too_long",
+    });
+    assert.equal(parseCommandLine(["list-checks"], quiet).command, "list-checks");
+    assert.equal(parseCommandLine(["--list-clients"], quiet).command, "list-clients");
+  });
+
+  it("does not treat a server command after -- as a subcommand", () => {
+    const i = parseCommandLine(["--", "diff", "x"], quiet);
+    assert.equal(i.command === "check" && i.options.target?.kind === "stdio" && i.options.target.command, "diff");
+  });
+});
+

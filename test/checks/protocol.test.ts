@@ -64,6 +64,46 @@ describe("protocol checks", () => {
     );
   });
 
+  it("PROTOCOL_VERSIONS_REJECTED", () => {
+    assert.equal(check("PROTOCOL_VERSIONS_REJECTED").appliesTo(snapshot()), false);
+    const s = snapshot({
+      versionMatrix: [
+        { requested: "2024-11-05", ok: false, error: "Unsupported protocol version" },
+        { requested: "2025-03-26", ok: true, negotiated: "2025-11-25" },
+        { requested: "2025-06-18", ok: true, negotiated: "2025-06-18" },
+        { requested: "2025-11-25", ok: true, negotiated: "2025-06-18" },
+        { requested: "2099-01-01", ok: true, negotiated: "banana" },
+      ],
+    });
+    assert.deepEqual(
+      runCheck(check("PROTOCOL_VERSIONS_REJECTED"), s).map((f) => [f.subject, f.severity]),
+      [
+        ["2024-11-05", "warn"],
+        ["2025-03-26", "info"],
+        ["2099-01-01", "error"],
+      ]
+    );
+  });
+
+  it("PROTOCOL_VERSION_SURFACE_DIFFERS", () => {
+    const same = snapshot({
+      versionMatrix: [
+        { requested: "2025-06-18", ok: true, negotiated: "2025-06-18", tools: ["a", "b"] },
+        { requested: "2025-11-25", ok: true, negotiated: "2025-11-25", tools: ["a", "b"] },
+      ],
+    });
+    assert.deepEqual(runCheck(check("PROTOCOL_VERSION_SURFACE_DIFFERS"), same), []);
+    const differs = snapshot({
+      versionMatrix: [
+        { requested: "2025-06-18", ok: true, negotiated: "2025-06-18", tools: ["a"] },
+        { requested: "2025-11-25", ok: true, negotiated: "2025-11-25", tools: ["a", "b"] },
+      ],
+    });
+    const [f] = runCheck(check("PROTOCOL_VERSION_SURFACE_DIFFERS"), differs);
+    assert.equal(f.subject, "2025-06-18");
+    assert.match(f.message, /: b\.$/);
+  });
+
   it("PROTOCOL_SERVERINFO_MISSING", () => {
     assert.deepEqual(runCheck(check("PROTOCOL_SERVERINFO_MISSING"), snapshot()), []);
     const [f] = runCheck(check("PROTOCOL_SERVERINFO_MISSING"), snapshot({ initialize: { serverInfo: { name: "x" } } }));

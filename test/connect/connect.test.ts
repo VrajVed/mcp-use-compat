@@ -62,6 +62,20 @@ describe("connect (stdio)", () => {
     assert.equal(s.uiReads?.["ui://sales/legacy"]?.mimeType, "text/html+skybridge");
   });
 
+  it("probes each published handshake version when asked", async () => {
+    const s = await connect({ ...opts, versionMatrix: true, target: fixture("clean") });
+    assert.deepEqual(
+      s.versionMatrix?.map((p) => [p.requested, p.ok, p.negotiated]),
+      [
+        ["2024-11-05", true, "2024-11-05"],
+        ["2025-03-26", true, "2025-03-26"],
+        ["2025-06-18", true, "2025-06-18"],
+        ["2025-11-25", true, "2025-11-25"],
+      ]
+    );
+    assert.deepEqual(s.versionMatrix?.[0].tools, ["create_event", "list_events"]);
+  });
+
   it("records list errors per method without failing the connection", async () => {
     const s = await connect({ ...opts, target: fixture("stdout-logger") });
     assert.equal(s.lists.prompts?.ok, false);

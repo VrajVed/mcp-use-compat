@@ -12,6 +12,26 @@ const toolName = (t: RawItem) => str(t.name) ?? "(unnamed)";
 const toolNames = (s: ServerSnapshot) => items(s, "tools").flatMap((t) => (typeof t.name === "string" ? [t.name] : []));
 const serverName = (s: ServerSnapshot) => str(s.initialize?.serverInfo?.name) ?? "server";
 
+const READ_VERBS = new Set(
+  "get list search find read fetch query describe show lookup count check view browse retrieve inspect preview download export".split(" ")
+);
+const WRITE_VERBS = new Set(
+  "create add update edit delete remove place cancel modify send post write set move rename execute run deploy transfer buy sell pay charge drop insert upsert archive publish submit approve reject revoke grant invite kill stop start restart reset clear purge destroy close open merge push".split(" ")
+);
+
+/** The first word of a tool name, lowercased: get_user → get, createEvent → create, files.read → files. */
+export function leadingVerb(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").split(/[_\-.\s]+/)[0]?.toLowerCase() ?? "";
+}
+
+/** "read" / "write" from the tool name's leading verb, or undefined if it doesn't say. */
+export function nameIntent(name: string): "read" | "write" | undefined {
+  const verb = leadingVerb(name);
+  return READ_VERBS.has(verb) ? "read" : WRITE_VERBS.has(verb) ? "write" : undefined;
+}
+
+const annotations = (t: RawItem): Record<string, unknown> => (isObject(t.annotations) ? t.annotations : {});
+
 /** Replaces characters outside the allowed class with "_". */
 export function sanitize(name: string, allowed: string): string {
   return name.replace(new RegExp(`[^${allowed}]`, "g"), "_");
@@ -333,22 +353,62 @@ export const toolChecks = [
   defineCheck({
     id: "TOOL_ANNOTATIONS_CONFLICT",
     area: "tools",
-    description: "Tool annotations are consistent",
+    description: "Tool annotations are consistent with each other and with the tool's name",
     appliesTo: hasTools,
     run: (s) =>
-      items(s, "tools")
-        .filter((t) => isObject(t.annotations))
-        .filter((t) => {
-          const a = t.annotations as Record<string, unknown>;
-          return a.readOnlyHint === true && (a.destructiveHint === true || a.idempotentHint === false);
-        })
-        .map((t) => ({
-          checkId: "TOOL_ANNOTATIONS_CONFLICT",
-          severity: "warn" as const,
-          subject: toolName(t),
-          message: "readOnlyHint is true but destructiveHint/idempotentHint describe a writing tool; clients may skip confirmation prompts.",
-          evidence: { annotations: t.annotations },
-          fix: "Set readOnlyHint: false for tools that modify anything.",
-        })),
+      items(s, "tools").flatMap((t): Finding[] => {
+        const a = annotations(t);
+        if (a.readOnlyHint !== true) return [];
+        if (a.destructiveHint === true || a.idempotentHint === false) {
+          return [
+            {
+              checkId: "TOOL_ANNOTATIONS_CONFLICT",
+              severity: "warn",
+              subject: toolName(t),
+              message: "readOnlyHint is true but destructiveHint/idempotentHint describe a writing tool; clients may skip confirmation prompts.",
+              evidence: { annotations: t.annotations },
+              fix: "Set readOnlyHint: false for tools that modify anything.",
+            },
+          ];
+        }
+        if (typeof t.name === "string" && nameIntent(t.name) === "write") {
+          return [
+            {
+              checkId: "TOOL_ANNOTATIONS_CONFLICT",
+              severity: "warn",
+              subject: t.name,
+              message: `"${t.name}" sounds like it changes something ("${leadingVerb(t.name)}") but declares readOnlyHint: true, so clients may run it without asking.`,
+              evidence: { annotations: t.annotations },
+              fix: "If the tool modifies state, set readOnlyHint: false (and destructiveHint as appropriate).",
+            },
+          ];
+        }
+        return [];
+      }),
+  }),
+
+  defineCheck({
+    id: "TOOL_ANNOTATIONS_MISSING",
+    area: "tools",
+    description: "Read-only tools declare readOnlyHint",
+    appliesTo: hasTools,
+    run: (s) => {
+      const tools = items(s, "tools");
+      const reads = tools.filter(
+        (t) => typeof t.name === "string" && nameIntent(t.name) === "read" && annotations(t).readOnlyHint === undefined
+      );
+      if (reads.length === 0) return [];
+      const none = tools.every((t) => !isObject(t.annotations));
+      return [
+        {
+          checkId: "TOOL_ANNOTATIONS_MISSING",
+          severity: "info",
+          subject: reads.map(toolName).join(", "),
+          message: `${reads.length} tool(s) look read-only but don't declare readOnlyHint${none ? " (the server sets no annotations at all)" : ""}. Without it the spec tells clients to assume they may be destructive, so users get needless confirmations and real writes don't stand out.`,
+          evidence: { tools: reads.map(toolName) },
+          fix: "Add annotations: { readOnlyHint: true } to read-only tools, and destructiveHint: false to writes that only add data.",
+        },
+      ];
+    },
   }),
 ];

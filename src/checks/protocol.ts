@@ -99,6 +99,77 @@ export const protocolChecks = [
   }),
 
   defineCheck({
+    id: "PROTOCOL_VERSIONS_REJECTED",
+    area: "protocol",
+    description: "Server handles every published protocol version clients may request (--version-matrix)",
+    appliesTo: (s) => connected(s) && !!s.versionMatrix?.length,
+    run: (s) =>
+      s.versionMatrix!.flatMap((probe): Finding[] => {
+        if (!probe.ok) {
+          return [
+            {
+              checkId: "PROTOCOL_VERSIONS_REJECTED",
+              severity: "warn",
+              subject: probe.requested,
+              message: `initialize with protocolVersion ${probe.requested} failed (${probe.error}). The spec says to answer with a version the server supports, so clients can decide; failing instead cuts off clients that start at ${probe.requested}.`,
+              fix: "On an unsupported version, respond with your latest supported version instead of an error.",
+            },
+          ];
+        }
+        if (probe.negotiated && !SUPPORTED_PROTOCOL_VERSIONS.includes(probe.negotiated)) {
+          return [
+            {
+              checkId: "PROTOCOL_VERSIONS_REJECTED",
+              severity: "error",
+              subject: probe.requested,
+              message: `Asked for ${probe.requested}, server answered with unknown version "${probe.negotiated}".`,
+              fix: "Answer with a published protocol version.",
+            },
+          ];
+        }
+        // Answering with an older version is correct negotiation; answering with a newer one
+        // (versions are dates, so they compare as strings) leaves an older client unable to talk.
+        if (probe.negotiated && probe.negotiated > probe.requested) {
+          return [
+            {
+              checkId: "PROTOCOL_VERSIONS_REJECTED",
+              severity: "info",
+              subject: probe.requested,
+              message: `Asked for ${probe.requested}, server answered the newer ${probe.negotiated}; clients that only speak ${probe.requested} will disconnect.`,
+              fix: `Support ${probe.requested} too if you need older clients (most SDKs do by default).`,
+            },
+          ];
+        }
+        return [];
+      }),
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_VERSION_SURFACE_DIFFERS",
+    area: "protocol",
+    description: "The tool list is the same whichever protocol version a client negotiates",
+    appliesTo: (s) => connected(s) && (s.versionMatrix?.filter((p) => p.tools).length ?? 0) > 1,
+    run: (s) => {
+      const probes = s.versionMatrix!.filter((p) => p.tools);
+      const all = new Set(probes.flatMap((p) => p.tools!));
+      return probes.flatMap((p): Finding[] => {
+        const missing = [...all].filter((t) => !p.tools!.includes(t));
+        if (missing.length === 0) return [];
+        return [
+          {
+            checkId: "PROTOCOL_VERSION_SURFACE_DIFFERS",
+            severity: "info",
+            subject: p.requested,
+            message: `Clients negotiating ${p.negotiated ?? p.requested} don't get ${missing.length} tool(s) other versions get: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? ", …" : ""}.`,
+            evidence: { missing },
+            fix: "If intentional (features that need newer protocol), document it; otherwise expose the same tools on every version.",
+          },
+        ];
+      });
+    },
+  }),
+
+  defineCheck({
     id: "PROTOCOL_SERVERINFO_MISSING",
     area: "protocol",
     description: "initialize returns serverInfo with name and version",
