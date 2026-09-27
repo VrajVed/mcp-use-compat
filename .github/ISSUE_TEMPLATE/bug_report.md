@@ -13,7 +13,7 @@ labels: bug
 The command you ran (redact secrets):
 
 ```bash
-npx mcpkit ...
+mcpkit ...
 ```
 
 If you can, attach a snapshot (`--save-snapshot snap.json`) so the problem can be reproduced without your server.

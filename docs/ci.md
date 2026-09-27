@@ -6,7 +6,7 @@ Copy [`examples/github-workflow.yml`](../examples/github-workflow.yml) into `.gi
 
 ```yaml
 - name: Check MCP client compatibility
-  run: npx mcpkit@0.4 --format github -- node dist/index.js
+  run: npx @vrajved/mcpkit@0.4 --format github -- node dist/index.js
 ```
 
 `--format github` turns findings into annotations on the pull request and writes the Markdown report to the job summary.
@@ -14,10 +14,10 @@ Copy [`examples/github-workflow.yml`](../examples/github-workflow.yml) into `.gi
 ## Choosing what fails the build
 
 ```bash
-npx mcpkit --fail-on error -- node dist/index.js    # default
-npx mcpkit --fail-on warn -- node dist/index.js     # stricter
-npx mcpkit --fail-on TOOL_*,SCHEMA_* -- node dist/index.js
-npx mcpkit --clients claude-desktop,chatgpt -- node dist/index.js   # only the clients you ship to
+npx @vrajved/mcpkit --fail-on error -- node dist/index.js    # default
+npx @vrajved/mcpkit --fail-on warn -- node dist/index.js     # stricter
+npx @vrajved/mcpkit --fail-on TOOL_*,SCHEMA_* -- node dist/index.js
+npx @vrajved/mcpkit --clients claude-desktop,chatgpt -- node dist/index.js   # only the clients you ship to
 ```
 
 Start with the default and the clients you support, then tighten.
@@ -25,7 +25,7 @@ Start with the default and the clients you support, then tighten.
 ## Keeping a report as an artifact
 
 ```yaml
-- run: npx mcpkit@0.4 --fail-on none --out mcpkit-report.md -- node dist/index.js
+- run: npx @vrajved/mcpkit@0.4 --fail-on none --out mcpkit-report.md -- node dist/index.js
 - uses: actions/upload-artifact@v4
   if: always()
   with:
@@ -38,8 +38,8 @@ Start with the default and the clients you support, then tighten.
 Save a snapshot from the main branch and compare it with the pull request. See [Comparing releases](snapshots-and-diff.md):
 
 ```bash
-npx mcpkit --fail-on none --save-snapshot after.json -- node dist/index.js
-npx mcpkit diff baseline.json after.json --format github
+npx @vrajved/mcpkit --fail-on none --save-snapshot after.json -- node dist/index.js
+npx @vrajved/mcpkit diff baseline.json after.json --format github
 ```
 
 ## Other CI systems

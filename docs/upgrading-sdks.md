@@ -5,8 +5,8 @@ Most protocol and compatibility fixes arrive through SDK releases. `upgrade` fin
 ## See what's out of date
 
 ```bash
-npx mcpkit upgrade -- node dist/server.js
-npx mcpkit upgrade --dir path/to/server/project
+mcpkit upgrade -- node dist/server.js
+mcpkit upgrade --dir path/to/server/project
 ```
 
 Output:
@@ -31,7 +31,7 @@ The installed version comes from `node_modules`, the virtualenv's `site-packages
 ## Apply it
 
 ```bash
-npx mcpkit upgrade --apply -- node dist/server.js
+mcpkit upgrade --apply -- node dist/server.js
 ```
 
 With `--apply` the tool:

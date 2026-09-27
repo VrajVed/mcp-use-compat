@@ -1,6 +1,6 @@
 {
-  "name": "mcpkit",
-  "version": "0.4.0",
+  "name": "@vrajved/mcpkit",
+  "version": "0.4.1",
   "description": "Find the problems that break an MCP server in specific MCP clients (Claude, ChatGPT, Cursor, VS Code, Codex and more), with sourced client facts, SDK upgrade help and CI output.",
   "keywords": [
     "mcp",
@@ -29,7 +29,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "mcpkit": "./dist/index.js"
+    "mcpkit": "dist/index.js"
   },
   "files": [
     "dist",
@@ -61,5 +61,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -5,20 +5,20 @@ A snapshot is everything the tool learned about a server in one run: its tools, 
 ## Save and re-check
 
 ```bash
-npx mcpkit --save-snapshot snap.json -- node dist/server.js
-npx mcpkit --from-snapshot snap.json
-npx mcpkit --from-snapshot snap.json --clients cursor
+mcpkit --save-snapshot snap.json -- node dist/server.js
+mcpkit --from-snapshot snap.json
+mcpkit --from-snapshot snap.json --clients cursor
 ```
 
 ## Compare two versions
 
 ```bash
 git stash && npm run build
-npx mcpkit --fail-on none --save-snapshot before.json -- node dist/server.js
+mcpkit --fail-on none --save-snapshot before.json -- node dist/server.js
 git stash pop && npm run build
-npx mcpkit --fail-on none --save-snapshot after.json -- node dist/server.js
+mcpkit --fail-on none --save-snapshot after.json -- node dist/server.js
 
-npx mcpkit diff before.json after.json
+mcpkit diff before.json after.json
 ```
 
 `diff` sorts changes into three levels:
@@ -30,9 +30,9 @@ npx mcpkit diff before.json after.json
 Options:
 
 ```bash
-npx mcpkit diff before.json after.json --fail-on breaking   # default: exit 1 on breaking changes
-npx mcpkit diff before.json after.json --fail-on any        # exit 1 on any change
-npx mcpkit diff before.json after.json --format json --out diff.json
+mcpkit diff before.json after.json --fail-on breaking   # default: exit 1 on breaking changes
+mcpkit diff before.json after.json --fail-on any        # exit 1 on any change
+mcpkit diff before.json after.json --format json --out diff.json
 ```
 
 `diff` needs snapshots, not `--format json` reports, because reports don't contain the full tool schemas.

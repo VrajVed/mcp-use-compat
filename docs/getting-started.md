@@ -6,14 +6,16 @@ You need Node.js 20 or newer. The server you test can be written in any language
 
 ```bash
 # Run without installing
-npx mcpkit --help
+npx @vrajved/mcpkit --help
 
 # Or install globally
-npm install -g mcpkit
+npm install -g @vrajved/mcpkit
 
 # Or add it to a project (for CI)
-npm install --save-dev mcpkit
+npm install --save-dev @vrajved/mcpkit
 ```
+
+The installed command is `mcpkit`; the examples below use it. Without installing, replace `mcpkit` with `npx @vrajved/mcpkit`.
 
 To use the latest code before a release:
 
@@ -26,23 +28,23 @@ npm install -g github:VrajVed/mcpkit
 Put the command that starts your server after `--`, exactly as you would type it:
 
 ```bash
-npx mcpkit -- node dist/server.js
-npx mcpkit -- uv run server.py
-npx mcpkit -- python -m my_server
-npx mcpkit -- npx -y @acme/mcp-server
+mcpkit -- node dist/server.js
+mcpkit -- uv run server.py
+mcpkit -- python -m my_server
+mcpkit -- npx -y @acme/mcp-server
 ```
 
 If the server needs environment variables or a different working directory:
 
 ```bash
-npx mcpkit --env API_KEY=test --env REGION=eu --cwd ./server -- node dist/index.js
+mcpkit --env API_KEY=test --env REGION=eu --cwd ./server -- node dist/index.js
 ```
 
 ## Check a remote server (Streamable HTTP)
 
 ```bash
-npx mcpkit --url https://example.com/mcp
-npx mcpkit --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
+mcpkit --url https://example.com/mcp
+mcpkit --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
 ```
 
 For servers that use OAuth, see [OAuth-protected servers](oauth.md).
@@ -61,16 +63,16 @@ The process exits `0` when nothing matched `--fail-on` (default: any FAIL), `1` 
 
 ```bash
 # Only the clients you care about (ids or aliases: claude, vscode, gemini, ...)
-npx mcpkit --clients claude-desktop,cursor,vscode -- node dist/server.js
+mcpkit --clients claude-desktop,cursor,vscode -- node dist/server.js
 
 # Ask why a check exists and which client facts it uses
-npx mcpkit explain TOOL_NAME_TOO_LONG
+mcpkit explain TOOL_NAME_TOO_LONG
 
 # Also try every protocol version and call read-only tools
-npx mcpkit --version-matrix --probe-calls -- node dist/server.js
+mcpkit --version-matrix --probe-calls -- node dist/server.js
 
 # Is the SDK up to date?
-npx mcpkit upgrade -- node dist/server.js
+mcpkit upgrade -- node dist/server.js
 ```
 
 Guides:

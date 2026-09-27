@@ -1,13 +1,11 @@
 # mcpkit
 
-_Formerly published on npm as `mcp-use-compat`._
-
 Find the problems that break an MCP server in specific MCP clients, before your users do.
 
 MCP is one protocol, but every client reads it differently: Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, OpenCode, Codex, Gemini CLI, Cline, Goose, Continue and Windsurf each rename, truncate, validate, cache and render things their own way. `mcpkit` connects to your server, records what it actually exposes, and checks it against sourced facts about each client. Every client-specific result links to where the fact comes from (docs, pinned client source, or maintainer statements), so a report tells you what breaks, where, and how we know.
 
 ```bash
-npx mcpkit -- node dist/server.js
+npx @vrajved/mcpkit -- node dist/server.js
 ```
 
 ## Installation
@@ -15,25 +13,25 @@ npx mcpkit -- node dist/server.js
 Requires Node.js 20 or newer. Your server can be written in any language.
 
 ```bash
-npx mcpkit --help              # run without installing
-npm install -g mcpkit          # install the CLI globally
-npm install --save-dev mcpkit  # add it to a project, e.g. for CI
+npx @vrajved/mcpkit --help              # run without installing
+npm install -g @vrajved/mcpkit          # install the CLI globally
+npm install --save-dev @vrajved/mcpkit  # add it to a project, e.g. for CI
 ```
 
-To try the latest code from GitHub: `npm install -g github:VrajVed/mcpkit`.
+After installing, the command is `mcpkit`. To try the latest code from GitHub: `npm install -g github:VrajVed/mcpkit`.
 
 ## Quick start
 
 ```bash
 # A local server: put its start command after --
-npx mcpkit -- node dist/server.js
-npx mcpkit -- uv run server.py
+mcpkit -- node dist/server.js
+mcpkit -- uv run server.py
 
 # A remote server
-npx mcpkit --url https://example.com/mcp
+mcpkit --url https://example.com/mcp
 
 # Is its MCP SDK up to date?
-npx mcpkit upgrade -- node dist/server.js
+mcpkit upgrade -- node dist/server.js
 ```
 
 You get a report per client, with a fix for every problem, and an exit code for CI. New here? Start with the [getting started guide](docs/getting-started.md).
@@ -80,23 +78,23 @@ Real examples:
 
 ```bash
 # stdio: pass the full command after --
-npx mcpkit -- node dist/server.js
-npx mcpkit -- uv run server.py
-npx mcpkit --env API_KEY=test -- npx -y @acme/mcp-server
+mcpkit -- node dist/server.js
+mcpkit -- uv run server.py
+mcpkit --env API_KEY=test -- npx -y @acme/mcp-server
 
 # Streamable HTTP
-npx mcpkit --url https://example.com/mcp
-npx mcpkit --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
+mcpkit --url https://example.com/mcp
+mcpkit --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
 
 # Only some clients (ids or aliases such as claude, vscode, gemini)
-npx mcpkit --clients cursor,vscode,codex -- node dist/server.js
+mcpkit --clients cursor,vscode,codex -- node dist/server.js
 
 # Also try every published protocol version, and call read-only tools
-npx mcpkit --version-matrix --probe-calls -- node dist/server.js
+mcpkit --version-matrix --probe-calls -- node dist/server.js
 
 # Save what the server exposed and re-check it later without running it
-npx mcpkit --save-snapshot snap.json -- node dist/server.js
-npx mcpkit --from-snapshot snap.json
+mcpkit --save-snapshot snap.json -- node dist/server.js
+mcpkit --from-snapshot snap.json
 ```
 
 | Option | Default | |
@@ -124,15 +122,15 @@ Exit codes: `0` nothing matched `--fail-on`, `1` something did, `2` usage error,
 **Tool calls happen only when you ask.** `--probe-calls` calls tools that explicitly declare `readOnlyHint: true`, never ones that also claim to be destructive or are named like writes (for example `place_order`), with the minimal arguments their schema requires. `call <tool>` calls exactly the tool you name:
 
 ```bash
-npx mcpkit call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
+mcpkit call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
 ```
 
 ## Keeping the SDK current
 
 ```bash
-npx mcpkit upgrade -- node dist/server.js            # what to upgrade, and the command
-npx mcpkit upgrade --apply -- node dist/server.js    # run it, then re-check the server
-npx mcpkit upgrade --apply --major -- node dist/server.js
+mcpkit upgrade -- node dist/server.js            # what to upgrade, and the command
+mcpkit upgrade --apply -- node dist/server.js    # run it, then re-check the server
+mcpkit upgrade --apply --major -- node dist/server.js
 ```
 
 `upgrade` finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp` and `fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the virtualenv, lockfiles), looks up the latest release, and prints the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go or cargo).
@@ -144,9 +142,9 @@ npx mcpkit upgrade --apply --major -- node dist/server.js
 ## Comparing versions
 
 ```bash
-npx mcpkit check --save-snapshot before.json -- node old/server.js
-npx mcpkit check --save-snapshot after.json -- node dist/server.js
-npx mcpkit diff before.json after.json    # exits 1 on breaking changes
+mcpkit check --save-snapshot before.json -- node old/server.js
+mcpkit check --save-snapshot after.json -- node dist/server.js
+mcpkit diff before.json after.json    # exits 1 on breaking changes
 ```
 
 Breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
@@ -154,10 +152,10 @@ Breaking: removed tools, resources, templates, prompts or capabilities; new requ
 ## OAuth-protected servers
 
 ```bash
-npx mcpkit oauth login --url https://example.com/mcp
-npx mcpkit check --oauth --url https://example.com/mcp
-npx mcpkit oauth status
-npx mcpkit oauth logout --url https://example.com/mcp
+mcpkit oauth login --url https://example.com/mcp
+mcpkit check --oauth --url https://example.com/mcp
+mcpkit oauth status
+mcpkit oauth logout --url https://example.com/mcp
 ```
 
 `oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (Client ID Metadata Documents, Dynamic Client Registration, or `--client-id` for a pre-registered client), the authorization request (PKCE S256 and `resource`), the callback (`state` and `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcpkit/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
@@ -165,8 +163,8 @@ npx mcpkit oauth logout --url https://example.com/mcp
 ## Fixing tool definitions
 
 ```bash
-npx mcpkit fix snap.json --out fixed-tools.json
-npx mcpkit fix snap.json --rename    # also rename tools that clients would rewrite
+mcpkit fix snap.json --out fixed-tools.json
+mcpkit fix snap.json --rename    # also rename tools that clients would rewrite
 ```
 
 `fix` never invents content. It removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement, such as a non-object root schema or a missing description, is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.

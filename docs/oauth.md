@@ -5,7 +5,7 @@
 Even without credentials, checking an HTTP server tests its OAuth discovery the way clients do:
 
 ```bash
-npx mcpkit --url https://example.com/mcp
+mcpkit --url https://example.com/mcp
 ```
 
 The `auth` checks cover the `WWW-Authenticate` challenge, protected resource metadata (RFC 9728), authorization server metadata (RFC 8414 and OpenID Connect), issuer matching, PKCE S256, and whether clients can register themselves (Client ID Metadata Documents or Dynamic Client Registration).
@@ -13,8 +13,8 @@ The `auth` checks cover the `WWW-Authenticate` challenge, protected resource met
 ## Log in and check everything
 
 ```bash
-npx mcpkit oauth login --url https://example.com/mcp
-npx mcpkit check --oauth --url https://example.com/mcp
+mcpkit oauth login --url https://example.com/mcp
+mcpkit check --oauth --url https://example.com/mcp
 ```
 
 `oauth login` opens your browser and reports each step:
@@ -45,8 +45,8 @@ A failed step tells you which part of the server's setup to fix.
 Tokens are stored per server in `~/.config/mcpkit/oauth.json` (or under `$XDG_CONFIG_HOME`), readable only by you.
 
 ```bash
-npx mcpkit oauth status
-npx mcpkit oauth logout --url https://example.com/mcp
+mcpkit oauth status
+mcpkit oauth logout --url https://example.com/mcp
 ```
 
 Runs with `--oauth` never register a new client or open a browser. They use the stored token, refresh it when needed, and otherwise tell you to run `oauth login` again.

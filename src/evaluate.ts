@@ -1,7 +1,7 @@
 import type { Check, CheckArea, Finding, Severity } from "./checks/types.js";
 import type { ClientProfile } from "./profiles/types.js";
 import type { ServerSnapshot, Target } from "./snapshot.js";
-import { TOOL_NAME, VERSION } from "./version.js";
+import { PACKAGE_NAME, VERSION } from "./version.js";
 
 export type Status = "pass" | "warn" | "fail" | "info" | "skip";
 
@@ -107,7 +107,7 @@ export function evaluate(snapshot: ServerSnapshot, checks: Check[], profiles: Cl
   const info = snapshot.initialize?.serverInfo;
   return {
     schemaVersion: 1,
-    tool: { name: TOOL_NAME, version: VERSION },
+    tool: { name: PACKAGE_NAME, version: VERSION },
     generatedAt: new Date().toISOString(),
     target: snapshot.target,
     server: {
