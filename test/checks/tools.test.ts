@@ -108,9 +108,9 @@ describe("tool checks", () => {
     assert.equal(truncateMiddle("short", 63), "short");
     const p = profile({ limits: { maxToolNameLength: { value: { max: 20, onExceed: "truncateMiddle" }, ...src } } });
     const [f] = runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("search_documents_by_title")), { profiles: [p] });
-    assert.match(f.message, /shortens it to "search_d\.\.\._by_title"/);
+    assert.match(f.message, /shortens it to "search_d\.\.\.by_title"/);
     assert.equal(
-      runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("search_a_long_way_by_title"), goodTool("search_b_long_way_by_title")), { profiles: [p] }).length,
+      runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("search_documents_a_by_title"), goodTool("search_documents_b_by_title")), { profiles: [p] }).length,
       1
     );
   });
