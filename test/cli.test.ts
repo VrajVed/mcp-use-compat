@@ -99,6 +99,15 @@ describe("parseCommandLine (subcommands)", () => {
     assert.throws(() => parseCommandLine(["call", "t", "--args", "{nope", "--", "node"], quiet));
   });
 
+  it("parses fix", () => {
+    assert.deepEqual(parseCommandLine(["fix", "snap.json", "--rename", "-o", "fixed.json"], quiet), {
+      command: "fix",
+      options: { input: "snap.json", out: "fixed.json", format: "summary", rename: true },
+    });
+    const j = parseCommandLine(["fix", "snap.json", "--json"], quiet);
+    assert.equal(j.command === "fix" && j.options.format, "json");
+  });
+
   it("parses the oauth commands", () => {
     const login = parseCommandLine(["oauth", "login", "--url", "https://m.example/mcp", "--callback-port", "8787", "--no-browser"], quiet);
     assert.equal(login.command, "oauth-login");

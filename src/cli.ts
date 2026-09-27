@@ -51,11 +51,19 @@ export interface CallOptions extends TargetOptions {
   format: "md" | "json";
 }
 
+export interface FixOptions {
+  input: string;
+  out?: string;
+  format: "json" | "summary";
+  rename: boolean;
+}
+
 export type Invocation =
   | { command: "check"; options: RunOptions }
   | { command: "call"; options: CallOptions }
   | { command: "diff"; options: DiffOptions }
   | { command: "explain"; checkId: string }
+  | { command: "fix"; options: FixOptions }
   | { command: "oauth-login"; options: OAuthLoginOptions }
   | { command: "oauth-status" }
   | { command: "oauth-logout"; url: string }
@@ -189,6 +197,20 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .description("delete stored credentials for a server")
     .requiredOption("--url <url>", "MCP server URL")
     .action((opts: Record<string, unknown>) => void (result = { command: "oauth-logout", url: parseUrl(opts.url as string) }));
+
+  program
+    .command("fix")
+    .description("apply safe mechanical fixes to tool definitions and list what changed")
+    .argument("<input>", "snapshot (from --save-snapshot), { tools: [...] } or an array of tools")
+    .option("-o, --out <file>", "write the fixed { tools } JSON to a file")
+    .option("--json", "print the fixed { tools } JSON to stdout", false)
+    .option("--rename", "also rename tools with characters clients rewrite (breaking for callers)", false)
+    .action((input: string, opts: Record<string, unknown>) => {
+      result = {
+        command: "fix",
+        options: { input, out: opts.out as string | undefined, format: opts.json ? "json" : "summary", rename: opts.rename as boolean },
+      };
+    });
 
   program
     .command("explain")

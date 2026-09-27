@@ -60,6 +60,10 @@ npx mcp-use-compat check --oauth --url https://example.com/mcp
 npx mcp-use-compat oauth status
 npx mcp-use-compat oauth logout --url https://example.com/mcp
 
+# Safe mechanical fixes to tool definitions, with a list of what changed
+npx mcp-use-compat fix snap.json --out fixed-tools.json
+npx mcp-use-compat fix snap.json --rename      # also rename tools clients would rewrite
+
 # Why does a check exist, and which client facts does it use?
 npx mcp-use-compat explain TOOL_NAME_TOO_LONG
 
@@ -68,6 +72,8 @@ npx mcp-use-compat list-clients
 ```
 
 `oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (CIMD, DCR, or `--client-id` for a pre-registered client), the authorization request (PKCE S256, `resource`), the callback (`state`, `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
+
+`fix` never invents content: it removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement (a non-object root schema, a missing description) is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
 
 `diff` treats as breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
 
