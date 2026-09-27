@@ -63,5 +63,11 @@ export const vscodeCopilot: ClientProfile = {
       source: `${SRC}/mcpLanguageModelToolContribution.ts#L331-L392`,
       verifiedOn,
     },
+    readOnlySkipsApproval: {
+      value: true,
+      source: "https://github.com/microsoft/vscode/blob/43dd9070f75d527ab38035c0562acbfe9de4209b/src/vs/workbench/contrib/mcp/common/mcpLanguageModelToolContribution.ts#L231-L243",
+      verifiedOn: "2026-09-27",
+      note: "Without readOnlyHint every call needs confirmation.",
+    },
   },
 };

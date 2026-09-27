@@ -148,9 +148,19 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     why: "readOnlyHint: true on a tool that also says it's destructive misleads clients that skip confirmation for read-only tools.",
     sources: [`${SPEC}/server/tools#tool-annotations`],
   },
+  TOOL_TITLE_MISSING: {
+    why: "Clients such as VS Code show the title instead of the raw tool name, and Anthropic's connector directory requires one.",
+    sources: [
+      "https://github.com/microsoft/vscode/blob/43dd9070f75d527ab38035c0562acbfe9de4209b/src/vs/workbench/contrib/mcp/common/mcpLanguageModelToolContribution.ts#L149",
+      "https://claude.com/docs/connectors/building/review-criteria",
+    ],
+  },
   TOOL_ANNOTATIONS_MISSING: {
     why: "Without annotations the spec tells clients to assume a tool may be destructive and open-world, so read-only tools get needless confirmations and nothing distinguishes real writes.",
-    sources: [`${SPEC}/schema#toolannotations`],
+    sources: [
+      "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/ab3a39c13bd23be691c2760e1c6c5c15a64582e1/schema/2025-11-25/schema.ts#L1168-L1222",
+    ],
+    limits: ["readOnlySkipsApproval"],
   },
   SCHEMA_MISSING: {
     why: "Every tool needs an inputSchema object; the TypeScript SDK rejects the whole tools/list response otherwise.",
@@ -161,14 +171,18 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     sources: [`${SPEC}/server/tools`, SDK_TYPES],
   },
   SCHEMA_INVALID: {
-    why: "Clients validate or transform schemas; invalid JSON Schema breaks that or gets the tool dropped.",
-    sources: ["https://json-schema.org/draft/2020-12"],
+    why: "Clients validate or transform schemas; invalid JSON Schema breaks that or gets the tool dropped (e.g. Codex skips tools whose schema it can't parse, such as required: false).",
+    sources: [
+      "https://json-schema.org/draft/2020-12",
+      "https://github.com/openai/codex/blob/8f195c93d7e7acfef95acf273f0e49cce917e291/codex-rs/core/src/mcp_tool_exposure.rs#L116-L121",
+    ],
   },
   SCHEMA_REQUIRED_UNKNOWN: {
     why: "A required argument that isn't in properties has no type, so the model can't fill it correctly.",
   },
   SCHEMA_TOP_LEVEL_COMBINATOR: {
-    why: "Root-level oneOf/anyOf/allOf/not is rejected or rewritten by several function-calling APIs.",
+    why: "Root-level oneOf/anyOf/allOf/not is valid JSON Schema, but clients handle it differently: Claude Code rewrites it, Cline may drop the server's tools.",
+    sources: ["https://code.claude.com/docs/en/mcp"],
   },
   SCHEMA_UNSUPPORTED_KEYWORD: {
     why: "Some clients reject or drop specific JSON Schema keywords.",
@@ -177,6 +191,26 @@ export const EXPLANATIONS: Record<string, Explanation> = {
   SCHEMA_PROPERTY_NAME_REJECTED: {
     why: "Some clients drop tools whose argument names don't match their naming rule.",
     limits: ["inputPropertyNamePattern"],
+  },
+  SCHEMA_EMPTY_ENUM: {
+    why: "An empty enum can't be satisfied, so no call to the tool can be valid.",
+    sources: ["https://json-schema.org/draft/2020-12/json-schema-validation#section-6.1.2"],
+  },
+  SCHEMA_ROOT_COMBINATOR_CLIENT: {
+    why: "Some clients reject root-level unions that aren't clearly object-shaped, and drop the server's tools.",
+    limits: ["rootCombinatorNonObject"],
+  },
+  SCHEMA_TYPE_ARRAY_CLIENT: {
+    why: "Type arrays are valid JSON Schema, but some clients' argument validation fails on them.",
+    limits: ["typeArraysRejected"],
+  },
+  SCHEMA_KEYWORDS_DROPPED: {
+    why: "Some clients strip JSON Schema keywords they don't model, so constraints like pattern or minimum never reach the model.",
+    limits: ["schemaDroppedKeywords"],
+  },
+  SCHEMA_TOO_LARGE: {
+    why: "Some clients compact large schemas, removing descriptions and nested definitions the model needs.",
+    limits: ["maxSchemaChars"],
   },
   SCHEMA_PROPERTY_NO_TYPE: {
     why: "Arguments without a type leave the model guessing what to send.",
@@ -307,7 +341,15 @@ export const EXPLANATIONS: Record<string, Explanation> = {
   CALL_STRUCTURED_WITHOUT_TEXT: {
     why: "Clients that don't read structuredContent only see the text content; the spec recommends a serialized copy.",
     sources: [`${SPEC}/server/tools#structured-content`],
-    features: ["structuredContent"],
+    limits: ["structuredContent"],
+  },
+  CALL_RESULT_TOO_LARGE: {
+    why: "Clients cap how much of a tool result the model sees and truncate or offload the rest.",
+    limits: ["maxToolResult"],
+  },
+  CALL_SLOW: {
+    why: "Clients cancel tool calls after a timeout; calls near the limit fail under load.",
+    limits: ["toolTimeoutMs"],
   },
   CALL_FAILED: {
     why: "Calls that error are listed for context. With --probe-calls the arguments are generated from the schema, so errors may be expected.",

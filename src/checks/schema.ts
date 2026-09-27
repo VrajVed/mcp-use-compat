@@ -34,14 +34,17 @@ interface SchemaStats {
   keywords: Set<string>;
   depth: number;
   untypedProperties: string[];
+  /** Paths of subschemas whose type is an array. */
+  typeArrays: string[];
 }
 
 /** Walks subschemas and collects keywords, nesting depth, and properties without a type. */
 export function analyze(schema: unknown): SchemaStats {
-  const stats: SchemaStats = { keywords: new Set(), depth: 0, untypedProperties: [] };
+  const stats: SchemaStats = { keywords: new Set(), depth: 0, untypedProperties: [], typeArrays: [] };
   const visit = (node: unknown, depth: number, path: string) => {
     if (!isObject(node)) return;
     stats.depth = Math.max(stats.depth, depth);
+    if (Array.isArray(node.type)) stats.typeArrays.push(path.replace(/\.$/, "") || "(root)");
     for (const key of Object.keys(node)) stats.keywords.add(key);
     if (isObject(node.properties)) {
       for (const [name, sub] of Object.entries(node.properties)) {
@@ -62,6 +65,38 @@ export function analyze(schema: unknown): SchemaStats {
   };
   visit(schema, 0, "");
   return stats;
+}
+
+/** Every enum in the schema with its path. */
+function enumPaths(schema: unknown, path = "", out: Array<[string, unknown[]]> = []): Array<[string, unknown[]]> {
+  if (!isObject(schema)) return out;
+  if (Array.isArray(schema.enum)) out.push([path || "(root)", schema.enum]);
+  if (isObject(schema.properties)) {
+    for (const [name, sub] of Object.entries(schema.properties)) enumPaths(sub, path ? `${path}.${name}` : name, out);
+  }
+  if (isObject(schema.items)) enumPaths(schema.items, `${path}[]`, out);
+  for (const key of ["anyOf", "oneOf", "allOf"]) {
+    if (Array.isArray(schema[key])) (schema[key] as unknown[]).forEach((sub) => enumPaths(sub, path, out));
+  }
+  return out;
+}
+
+/**
+ * Mirrors Cline's normalizeToolInputSchema (sdk/packages/shared/src/tools/create.ts @ 252082b):
+ * schemas with a string `type`, or with properties/required/additionalProperties, pass.
+ * Otherwise the first non-empty root oneOf/anyOf/allOf decides: oneOf/anyOf need every
+ * branch to be `type: "object"`, allOf needs at least one such branch.
+ */
+export function rootCombinatorBreaks(schema: Record<string, unknown>): boolean {
+  if (typeof schema.type === "string") return false;
+  if ("properties" in schema || "required" in schema || "additionalProperties" in schema) return false;
+  const isObjectBranch = (b: unknown) => isObject(b) && b.type === "object";
+  for (const key of ["oneOf", "anyOf", "allOf"]) {
+    const branches = schema[key];
+    if (!Array.isArray(branches) || branches.length === 0) continue;
+    return key === "allOf" ? !branches.some(isObjectBranch) : !branches.every(isObjectBranch);
+  }
+  return false;
 }
 
 function hasTypeInfo(schema: Record<string, unknown>): boolean {
@@ -164,9 +199,9 @@ export const schemaChecks = [
         return [
           {
             checkId: "SCHEMA_TOP_LEVEL_COMBINATOR",
-            severity: "warn",
+            severity: "info",
             subject: toolName(t),
-            message: `inputSchema uses ${used.join("/")} at the root; several LLM function-calling APIs reject this.`,
+            message: `inputSchema uses ${used.join("/")} at the root. Valid JSON Schema, but clients handle it differently: some rewrite it (Claude Code), and some fail on it (see client-specific results).`,
             fix: "Use one flat object schema; express variants with optional properties or an enum discriminator.",
           },
         ];
@@ -230,6 +265,128 @@ export const schemaChecks = [
             },
           ];
         });
+      }),
+  }),
+
+  defineCheck({
+    id: "SCHEMA_EMPTY_ENUM",
+    area: "schema",
+    description: "enum lists have at least one value",
+    appliesTo: hasTools,
+    run: (s) =>
+      schemas(s, "inputSchema").flatMap(([t, schema]): Finding[] => {
+        const empty = enumPaths(schema).filter(([, values]) => values.length === 0).map(([path]) => path);
+        if (empty.length === 0) return [];
+        return [
+          {
+            checkId: "SCHEMA_EMPTY_ENUM",
+            severity: "warn",
+            subject: toolName(t),
+            message: `Empty enum at ${empty.join(", ")}: no value can satisfy it, so the tool can never be called correctly.`,
+            fix: "List the allowed values, or remove enum.",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "SCHEMA_ROOT_COMBINATOR_CLIENT",
+    area: "schema",
+    description: "Root-level oneOf/anyOf/allOf is shaped the way each client can handle",
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const rule = p.limits.rootCombinatorNonObject;
+        if (!rule) return [];
+        const bad = schemas(s, "inputSchema").filter(([, schema]) => rootCombinatorBreaks(schema));
+        if (bad.length === 0) return [];
+        return [
+          {
+            checkId: "SCHEMA_ROOT_COMBINATOR_CLIENT",
+            severity: "error",
+            subject: bad.map(([t]) => toolName(t)).join(", "),
+            client: p.id,
+            source: rule.source,
+            message: `${bad.length} tool(s) have no root type and a root-level oneOf/anyOf with a branch that isn't type: "object" (or an allOf without one); ${p.displayName} fails to register them and drops every tool from this server.`,
+            fix: 'Add "type": "object" at the root (MCP requires it anyway), or make every branch type: "object".',
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "SCHEMA_TYPE_ARRAY_CLIENT",
+    area: "schema",
+    description: 'Type arrays (e.g. ["string","null"]) avoided for clients that fail on them',
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const rule = p.limits.typeArraysRejected;
+        if (!rule?.value) return [];
+        const bad = schemas(s, "inputSchema").filter(([, schema]) => analyze(schema).typeArrays.length > 0);
+        if (bad.length === 0) return [];
+        return [
+          {
+            checkId: "SCHEMA_TYPE_ARRAY_CLIENT",
+            severity: "warn",
+            subject: bad.map(([t]) => toolName(t)).join(", "),
+            client: p.id,
+            source: rule.source,
+            message: withNote(`${bad.length} tool(s) use type arrays such as ["string","null"], which ${p.displayName}'s argument validation rejects.`, rule.note),
+            fix: "Make the property optional instead of nullable, or use a single type.",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "SCHEMA_KEYWORDS_DROPPED",
+    area: "schema",
+    description: "Notes schema constraints a client removes before the model sees them",
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const rule = p.limits.schemaDroppedKeywords;
+        if (!rule) return [];
+        const used = new Set(schemas(s, "inputSchema").flatMap(([, schema]) => [...analyze(schema).keywords]));
+        const dropped = rule.value.filter((k) => used.has(k));
+        if (dropped.length === 0) return [];
+        return [
+          {
+            checkId: "SCHEMA_KEYWORDS_DROPPED",
+            severity: "info",
+            client: p.id,
+            source: rule.source,
+            message: `${p.displayName} silently removes ${dropped.join(", ")} from schemas, so the model never sees those constraints.`,
+            fix: "Validate arguments on the server and state important constraints in descriptions.",
+          },
+        ];
+      }),
+  }),
+
+  defineCheck({
+    id: "SCHEMA_TOO_LARGE",
+    area: "schema",
+    description: "inputSchema fits each client's size limit",
+    appliesTo: hasTools,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const limit = p.limits.maxSchemaChars;
+        if (!limit) return [];
+        return schemas(s, "inputSchema")
+          .map(([t, schema]): [string, number] => [toolName(t), JSON.stringify(schema).length])
+          .filter(([, size]) => size > limit.value)
+          .map(
+            ([name, size]): Finding => ({
+              checkId: "SCHEMA_TOO_LARGE",
+              severity: "warn",
+              subject: name,
+              client: p.id,
+              source: limit.source,
+              message: withNote(`inputSchema is about ${size} characters; ${p.displayName} compacts schemas over ${limit.value}.`, limit.note),
+              fix: "Trim long descriptions and nested definitions, or split the tool.",
+            })
+          );
       }),
   }),
 

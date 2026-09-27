@@ -30,7 +30,7 @@ describe("cli end to end", () => {
     const { code, report } = await json("--", TSX, fixturePath("clean"));
     assert.equal(code, 0, JSON.stringify(report.findings.filter((f: { severity: string }) => f.severity === "error")));
     assert.equal(report.server.name, "clean-fixture");
-    assert.equal(report.clients.length, 6);
+    assert.equal(report.clients.length, 12);
   });
 
   it("fails a server with broken tools and names the problems", async () => {

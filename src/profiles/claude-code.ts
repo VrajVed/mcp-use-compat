@@ -54,5 +54,11 @@ export const claudeCode: ClientProfile = {
       verifiedOn,
       note: "Tools with other top-level property names are excluded (flag-gated, v2.1.216+).",
     },
+    maxToolResult: {
+      value: { max: 25000, unit: "tokens", onExceed: "file" },
+      source: "https://code.claude.com/docs/en/mcp#mcp-output-limits-and-warnings",
+      verifiedOn: "2026-09-27",
+      note: "MAX_MCP_OUTPUT_TOKENS default; larger results are saved to disk and replaced by a file reference.",
+    },
   },
 };

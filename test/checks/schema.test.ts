@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { analyze, metaValidate, schemaChecks } from "../../src/checks/schema.js";
+import { analyze, metaValidate, rootCombinatorBreaks, schemaChecks } from "../../src/checks/schema.js";
 import { byId, goodTool, list, profile, runCheck, snapshot, src } from "./builders.js";
 
 const check = (id: string) => byId(schemaChecks, id);
@@ -105,3 +105,58 @@ describe("schema checks", () => {
     assert.equal(runCheck(check("SCHEMA_TOO_DEEP"), withSchema(deep)).length, 1);
   });
 });
+
+describe("verified schema rules", () => {
+  it("SCHEMA_EMPTY_ENUM finds empty enums at any depth", () => {
+    assert.deepEqual(runCheck(check("SCHEMA_EMPTY_ENUM"), withSchema({ type: "object", properties: { a: { enum: ["x"] } } })), []);
+    const [f] = runCheck(
+      check("SCHEMA_EMPTY_ENUM"),
+      withSchema({ type: "object", properties: { filter: { type: "object", properties: { side: { enum: [] } } } } })
+    );
+    assert.match(f.message, /filter\.side/);
+  });
+
+  it("rootCombinatorBreaks mirrors Cline exactly", () => {
+    // A string type or object keywords short-circuit, as in Cline.
+    assert.equal(rootCombinatorBreaks({ type: "object", anyOf: [{ required: ["a"] }] }), false);
+    assert.equal(rootCombinatorBreaks({ properties: {}, oneOf: [{ type: "string" }] }), false);
+    assert.equal(rootCombinatorBreaks({ anyOf: [{ type: "object" }, { type: "object" }] }), false);
+    assert.equal(rootCombinatorBreaks({ anyOf: [{ type: "object" }, { type: "string" }] }), true);
+    assert.equal(rootCombinatorBreaks({ oneOf: [{ required: ["a"] }] }), true);
+    assert.equal(rootCombinatorBreaks({ allOf: [{ required: ["a"] }, { type: "object" }] }), false);
+    assert.equal(rootCombinatorBreaks({ allOf: [{ required: ["a"] }] }), true);
+    assert.equal(rootCombinatorBreaks({}), false);
+  });
+
+  it("SCHEMA_ROOT_COMBINATOR_CLIENT is per client and names every affected tool", () => {
+    const p = profile({ limits: { rootCombinatorNonObject: { value: "dropsServerTools", ...src } } });
+    assert.deepEqual(runCheck(check("SCHEMA_ROOT_COMBINATOR_CLIENT"), snapshot(), { profiles: [p] }), []);
+    const [f] = runCheck(check("SCHEMA_ROOT_COMBINATOR_CLIENT"), withSchema({ anyOf: [{ type: "string" }] }), { profiles: [p] });
+    assert.equal(f.severity, "error");
+    assert.match(f.message, /drops every tool/);
+  });
+
+  it("SCHEMA_TYPE_ARRAY_CLIENT", () => {
+    const p = profile({ limits: { typeArraysRejected: { value: true, ...src } } });
+    assert.deepEqual(runCheck(check("SCHEMA_TYPE_ARRAY_CLIENT"), snapshot(), { profiles: [p] }), []);
+    const s = withSchema({ type: "object", properties: { note: { type: ["string", "null"] } } });
+    assert.equal(runCheck(check("SCHEMA_TYPE_ARRAY_CLIENT"), s, { profiles: [p] })[0].severity, "warn");
+    assert.deepEqual(analyze({ type: "object", properties: { note: { type: ["string", "null"] } } }).typeArrays, ["note"]);
+  });
+
+  it("SCHEMA_KEYWORDS_DROPPED lists only keywords the server uses", () => {
+    const p = profile({ limits: { schemaDroppedKeywords: { value: ["pattern", "format", "minimum"], ...src } } });
+    const s = withSchema({ type: "object", properties: { code: { type: "string", pattern: "^[A-Z]+$" } } });
+    const [f] = runCheck(check("SCHEMA_KEYWORDS_DROPPED"), s, { profiles: [p] });
+    assert.equal(f.severity, "info");
+    assert.match(f.message, /removes pattern from/);
+  });
+
+  it("SCHEMA_TOO_LARGE", () => {
+    const p = profile({ limits: { maxSchemaChars: { value: 200, ...src } } });
+    assert.deepEqual(runCheck(check("SCHEMA_TOO_LARGE"), snapshot(), { profiles: [p] }), []);
+    const s = withSchema({ type: "object", properties: { a: { type: "string", description: "x".repeat(300) } } });
+    assert.equal(runCheck(check("SCHEMA_TOO_LARGE"), s, { profiles: [p] })[0].severity, "warn");
+  });
+});
+

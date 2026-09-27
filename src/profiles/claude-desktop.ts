@@ -36,5 +36,18 @@ export const claudeDesktop: ClientProfile = {
       verifiedOn,
       note: "Claude API tool-name rule; how MCP names with other characters are mapped is not documented.",
     },
+    maxToolResult: {
+      value: { max: 150000, unit: "chars", onExceed: "unknown" },
+      source: "https://claude.com/docs/connectors/building/index",
+      verifiedOn: "2026-09-27",
+      note: "Approximate limit for claude.ai and Desktop; behaviour beyond it isn't documented.",
+    },
+    toolTimeoutMs: { value: 240000, source: "https://claude.com/docs/connectors/building/index", verifiedOn: "2026-09-27" },
+    readOnlySkipsApproval: {
+      value: true,
+      source: "https://claude.com/docs/connectors/building/review-criteria",
+      verifiedOn: "2026-09-27",
+      note: "Read-only tools can run without per-call confirmation; destructive tools always prompt.",
+    },
   },
 };

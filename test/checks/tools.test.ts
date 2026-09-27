@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
-import { toolChecks } from "../../src/checks/tools.js";
+import { toolChecks, truncateMiddle } from "../../src/checks/tools.js";
 import { byId, goodTool, list, profile, runCheck, snapshot, src } from "./builders.js";
 
 const check = (id: string) => byId(toolChecks, id);
@@ -101,6 +101,31 @@ describe("tool checks", () => {
       }).length,
       1
     );
+  });
+
+  it("TOOL_NAME_TOO_LONG and TOOL_NAME_CLIENT_COLLISION handle middle truncation", () => {
+    assert.equal(truncateMiddle("a".repeat(30) + "MIDDLE" + "b".repeat(30), 63), "a".repeat(30) + "..." + "b".repeat(30));
+    assert.equal(truncateMiddle("short", 63), "short");
+    const p = profile({ limits: { maxToolNameLength: { value: { max: 20, onExceed: "truncateMiddle" }, ...src } } });
+    const [f] = runCheck(check("TOOL_NAME_TOO_LONG"), withTools(goodTool("search_documents_by_title")), { profiles: [p] });
+    assert.match(f.message, /shortens it to "search_d\.\.\._by_title"/);
+    assert.equal(
+      runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("search_a_long_way_by_title"), goodTool("search_b_long_way_by_title")), { profiles: [p] }).length,
+      1
+    );
+  });
+
+  it("TOOL_NAME_CLIENT_CHARS explains replaceUnique, and it never collides", () => {
+    const p = profile({ limits: { toolNameChars: { value: { allowed: "A-Za-z0-9_", onInvalid: "replaceUnique" }, ...src } } });
+    const [f] = runCheck(check("TOOL_NAME_CLIENT_CHARS"), withTools(goodTool("fetch-weather")), { profiles: [p] });
+    assert.match(f.message, /"fetch_weather".*clashing names get a hash suffix/);
+    assert.deepEqual(runCheck(check("TOOL_NAME_CLIENT_COLLISION"), withTools(goodTool("a-b"), goodTool("a_b")), { profiles: [p] }), []);
+  });
+
+  it("TOOL_TITLE_MISSING", () => {
+    assert.deepEqual(runCheck(check("TOOL_TITLE_MISSING"), withTools({ ...goodTool(), title: "Get weather" })), []);
+    assert.deepEqual(runCheck(check("TOOL_TITLE_MISSING"), withTools({ ...goodTool(), annotations: { title: "Get weather" } })), []);
+    assert.equal(runCheck(check("TOOL_TITLE_MISSING"), withTools(goodTool()))[0].severity, "info");
   });
 
   it("TOOL_NAME_CLIENT_COLLISION ignores hash-suffixed truncation and unknown handling", () => {
@@ -213,6 +238,9 @@ describe("tool checks", () => {
     assert.equal(f.severity, "info");
     assert.equal(f.subject, "get_holdings, listOrders");
     assert.match(f.message, /no annotations at all/);
+    const skipping = profile({ displayName: "Skippy", limits: { readOnlySkipsApproval: { value: true, ...src } } });
+    const [g] = runCheck(check("TOOL_ANNOTATIONS_MISSING"), withTools(goodTool("get_holdings")), { profiles: [skipping] });
+    assert.match(g.message, /Skippy ask for confirmation on every call/);
   });
 
 });

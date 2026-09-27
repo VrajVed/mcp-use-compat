@@ -44,5 +44,11 @@ export const cursor: ClientProfile = {
       verifiedOn,
       note: "Staff: server name + tool name can't exceed 60; longer names get a warning and are truncated with a hash suffix.",
     },
+    typeArraysRejected: {
+      value: true,
+      source: "https://forum.cursor.com/t/error-invoking-mcp-tools-with-optional-parameters/142477",
+      verifiedOn: "2026-09-27",
+      note: "Staff-confirmed validation bug (Cursor 2.0.75); a fix was promised without a version, so current builds may differ.",
+    },
   },
 };

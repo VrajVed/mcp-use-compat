@@ -96,20 +96,86 @@ export const callChecks = [
     area: "calls",
     description: "Structured results also carry a text copy",
     appliesTo: (s) => answered(s).some((c) => c.result && "structuredContent" in c.result),
-    run: (s) =>
+    run: (s, { profiles }) =>
       answered(s).flatMap((c): Finding[] => {
         const content = Array.isArray(c.result!.content) ? c.result!.content : [];
         if (!("structuredContent" in c.result!) || content.some((i) => isObject(i) && i.type === "text")) return [];
+        const textOnly = profiles.filter((p) => p.limits.structuredContent?.value === "textOnly");
         return [
           {
             checkId: "CALL_STRUCTURED_WITHOUT_TEXT",
             severity: "warn",
             subject: c.tool,
             message: `${call(c)} returned structuredContent with no text content. The spec says tools SHOULD also return the JSON as text for clients that don't read structuredContent.`,
-            affects: ["structuredContent"],
-            fix: "Add { type: \"text\", text: JSON.stringify(structuredContent) } to content.",
+            fix: 'Add { type: "text", text: JSON.stringify(structuredContent) } to content.',
           },
+          ...textOnly.map(
+            (p): Finding => ({
+              checkId: "CALL_STRUCTURED_WITHOUT_TEXT",
+              severity: "error",
+              subject: c.tool,
+              client: p.id,
+              source: p.limits.structuredContent!.source,
+              message: `${p.displayName} only passes text content to the model, so it gets an empty result from ${c.tool}.`,
+              fix: 'Add { type: "text", text: JSON.stringify(structuredContent) } to content.',
+            })
+          ),
         ];
+      }),
+  }),
+
+  defineCheck({
+    id: "CALL_RESULT_TOO_LARGE",
+    area: "calls",
+    description: "Tool results fit each client's result size limit",
+    appliesTo: (s) => answered(s).length > 0,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const limit = p.limits.maxToolResult;
+        if (!limit) return [];
+        return answered(s).flatMap((c): Finding[] => {
+          const chars = c.resultChars ?? 0;
+          // Tokens are estimated at ~4 characters each; bytes ≈ characters for ASCII.
+          const size = limit.value.unit === "tokens" ? Math.round(chars / 4) : chars;
+          if (size <= limit.value.max) return [];
+          const what = { truncate: "truncates it", file: "saves it to a file and gives the model a reference instead", unknown: "may cut it off" }[limit.value.onExceed];
+          return [
+            {
+              checkId: "CALL_RESULT_TOO_LARGE",
+              severity: "warn",
+              subject: c.tool,
+              client: p.id,
+              source: limit.source,
+              message: `${call(c)} returned about ${size.toLocaleString("en")} ${limit.value.unit}${limit.value.unit === "tokens" ? " (estimated)" : ""}; ${p.displayName} allows ${limit.value.max.toLocaleString("en")} and ${what}.`,
+              fix: "Paginate or summarise large results, or return a resource link instead of inlining data.",
+            },
+          ];
+        });
+      }),
+  }),
+
+  defineCheck({
+    id: "CALL_SLOW",
+    area: "calls",
+    description: "Tool calls finish well within each client's timeout",
+    appliesTo: (s) => answered(s).length > 0,
+    run: (s, { profiles }) =>
+      profiles.flatMap((p) => {
+        const timeout = p.limits.toolTimeoutMs;
+        if (!timeout) return [];
+        return answered(s)
+          .filter((c) => c.durationMs > timeout.value / 2)
+          .map(
+            (c): Finding => ({
+              checkId: "CALL_SLOW",
+              severity: c.durationMs > timeout.value ? "error" : "warn",
+              subject: c.tool,
+              client: p.id,
+              source: timeout.source,
+              message: `${call(c)} took ${(c.durationMs / 1000).toFixed(1)} s; ${p.displayName} times out after ${timeout.value / 1000} s.`,
+              fix: "Return quickly and report progress, or move long work behind a job id the model can poll.",
+            })
+          );
       }),
   }),
 

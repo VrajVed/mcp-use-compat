@@ -33,8 +33,12 @@ export type NameHandling =
   | "reject"
   | "replace"
   | "truncate"
-  /** Truncated, then made unique with a hash suffix. */
+  /** Truncated (or renamed), then made unique with a hash suffix. */
   | "truncateWithHash"
+  /** Keeps the start and end, joined by "...". */
+  | "truncateMiddle"
+  /** Replaced; names that then collide get a hash suffix, so they stay unique. */
+  | "replaceUnique"
   | "unknown";
 
 /** How a client passes a tool result with structuredContent to the model. */
@@ -44,7 +48,9 @@ export type StructuredContentHandling =
   /** Model sees both. */
   | "alongsideText"
   /** Model sees text content; structuredContent only if content is empty. */
-  | "fallbackOnly";
+  | "fallbackOnly"
+  /** Model only ever sees the text content. */
+  | "textOnly";
 
 export interface ClientProfile {
   id: string;
@@ -71,5 +77,19 @@ export interface ClientProfile {
     /** JSON Schema keywords the client rejects or drops. */
     schemaUnsupported?: Sourced<string[]>;
     structuredContent?: Sourced<StructuredContentHandling>;
+    /** Root-level oneOf/anyOf with a non-object branch makes the client drop the server's tools. */
+    rootCombinatorNonObject?: Sourced<"dropsServerTools">;
+    /** Type arrays like ["string","null"] fail the client's argument validation. */
+    typeArraysRejected?: Sourced<boolean>;
+    /** JSON Schema keywords the client silently removes before the model sees the schema. */
+    schemaDroppedKeywords?: Sourced<string[]>;
+    /** inputSchema size (JSON characters) above which the client compacts or strips it. */
+    maxSchemaChars?: Sourced<number>;
+    /** Tool result size the model gets before the client truncates or offloads it. */
+    maxToolResult?: Sourced<{ max: number; unit: "chars" | "tokens" | "bytes"; onExceed: "truncate" | "file" | "unknown" }>;
+    /** Default tool call timeout. */
+    toolTimeoutMs?: Sourced<number>;
+    /** readOnlyHint: true lets tools run without a confirmation prompt. */
+    readOnlySkipsApproval?: Sourced<boolean>;
   };
 }

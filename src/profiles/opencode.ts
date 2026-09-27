@@ -33,5 +33,17 @@ export const opencode: ClientProfile = {
       verifiedOn,
     },
     structuredContent: { value: "fallbackOnly", source: `${SRC}/catalog.ts#L75-L80`, verifiedOn },
+    maxToolResult: {
+      value: { max: 51200, unit: "bytes", onExceed: "file" },
+      source: "https://github.com/anomalyco/opencode/blob/b471c2b4495747353af768fbf2e0790c9d820ce2/packages/opencode/src/tool/truncate.ts#L14-L15",
+      verifiedOn: "2026-09-27",
+      note: "2000 lines / 50 KB by default; the full output is saved to a file.",
+    },
+    toolTimeoutMs: {
+      value: 60000,
+      source: "https://github.com/anomalyco/opencode/blob/b471c2b4495747353af768fbf2e0790c9d820ce2/packages/opencode/src/mcp/catalog.ts#L54-L66",
+      verifiedOn: "2026-09-27",
+      note: "Per-server timeout, else the MCP SDK default of 60 s.",
+    },
   },
 };

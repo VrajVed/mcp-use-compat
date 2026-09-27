@@ -54,8 +54,18 @@ export function clientToolName(s: ServerSnapshot, p: ClientProfile, name: string
   const chars = p.limits.toolNameChars?.value;
   let result = clientPrefix(s, p) + (chars?.onInvalid === "replace" ? sanitize(name, chars.allowed) : name);
   const length = p.limits.maxToolNameLength?.value;
-  if (length?.onExceed === "truncate") result = result.slice(0, length.max);
+  if (length && result.length > length.max) {
+    if (length.onExceed === "truncate") result = result.slice(0, length.max);
+    if (length.onExceed === "truncateMiddle") result = truncateMiddle(result, length.max);
+  }
   return result;
+}
+
+/** Start and end joined by "..." (Gemini CLI's scheme: 30 + "..." + 30 for a 63 limit). */
+export function truncateMiddle(name: string, max: number): string {
+  if (name.length <= max) return name;
+  const keep = Math.floor((max - 3) / 2);
+  return `${name.slice(0, keep)}...${name.slice(name.length - keep)}`;
 }
 
 export const toolChecks = [
@@ -144,7 +154,11 @@ export const toolChecks = [
                   ? `${p.displayName} rejects tool names with characters outside [${rule.value.allowed}].`
                   : onInvalid === "replace"
                     ? `${p.displayName} renames it to "${renamed}" (only [${rule.value.allowed}] allowed).`
-                    : withNote(`${p.displayName} only accepts [${rule.value.allowed}].`, rule.note),
+                    : onInvalid === "replaceUnique"
+                      ? `${p.displayName} renames it to "${renamed}" (only [${rule.value.allowed}] allowed; clashing names get a hash suffix).`
+                    : onInvalid === "truncateWithHash"
+                      ? `${p.displayName} renames it to "${renamed}" plus a hash suffix (only [${rule.value.allowed}] allowed), so the model sees a mangled name.`
+                      : withNote(`${p.displayName} only accepts [${rule.value.allowed}].`, rule.note),
               fix: "Use only letters, digits, underscores and dashes in tool names.",
             };
           });
@@ -173,7 +187,9 @@ export const toolChecks = [
                   ? `truncates it to "${full.slice(0, max)}"`
                   : onExceed === "truncateWithHash"
                     ? "truncates it and appends a hash, so the model sees a mangled name"
-                    : "may reject or rewrite it";
+                    : onExceed === "truncateMiddle"
+                      ? `shortens it to "${truncateMiddle(full, max)}"`
+                      : "may reject or rewrite it";
             return {
               checkId: "TOOL_NAME_TOO_LONG",
               severity: onExceed === "reject" ? "error" : "warn",
@@ -339,7 +355,9 @@ export const toolChecks = [
             message:
               rule.value === "replacesText"
                 ? `${p.displayName} sends the model JSON of structuredContent instead of the text content, so anything only in the text is lost.`
-                : `${p.displayName} sends the model only the text content (structuredContent is used only when content is empty).`,
+                : rule.value === "textOnly"
+                  ? `${p.displayName} only ever sends the model the text content; structuredContent never reaches it.`
+                  : `${p.displayName} sends the model only the text content (structuredContent is used only when content is empty).`,
             fix:
               rule.value === "replacesText"
                 ? "Put everything the model needs into structuredContent."
@@ -388,12 +406,34 @@ export const toolChecks = [
   }),
 
   defineCheck({
+    id: "TOOL_TITLE_MISSING",
+    area: "tools",
+    description: "Tools have a human-readable title",
+    appliesTo: hasTools,
+    run: (s) => {
+      const untitled = items(s, "tools").filter((t) => !str(t.title) && !str(annotations(t).title));
+      if (untitled.length === 0) return [];
+      return [
+        {
+          checkId: "TOOL_TITLE_MISSING",
+          severity: "info",
+          subject: untitled.map(toolName).slice(0, 10).join(", ") + (untitled.length > 10 ? ", …" : ""),
+          message: `${untitled.length} tool(s) have no title, so clients such as VS Code show the raw name; Anthropic's connector directory requires a title on every tool.`,
+          evidence: { tools: untitled.map(toolName) },
+          fix: 'Add title: "Get weather" (or annotations.title) to each tool.',
+        },
+      ];
+    },
+  }),
+
+  defineCheck({
     id: "TOOL_ANNOTATIONS_MISSING",
     area: "tools",
     description: "Read-only tools declare readOnlyHint",
     appliesTo: hasTools,
-    run: (s) => {
+    run: (s, { profiles }) => {
       const tools = items(s, "tools");
+      const skipping = profiles.filter((p) => p.limits.readOnlySkipsApproval?.value === true).map((p) => p.displayName);
       const reads = tools.filter(
         (t) => typeof t.name === "string" && nameIntent(t.name) === "read" && annotations(t).readOnlyHint === undefined
       );
@@ -404,7 +444,7 @@ export const toolChecks = [
           checkId: "TOOL_ANNOTATIONS_MISSING",
           severity: "info",
           subject: reads.map(toolName).join(", "),
-          message: `${reads.length} tool(s) look read-only but don't declare readOnlyHint${none ? " (the server sets no annotations at all)" : ""}. Without it the spec tells clients to assume they may be destructive, so users get needless confirmations and real writes don't stand out.`,
+          message: `${reads.length} tool(s) look read-only but don't declare readOnlyHint${none ? " (the server sets no annotations at all)" : ""}. Without it the spec tells clients to assume they may be destructive${skipping.length ? `; ${skipping.join(", ")} ask for confirmation on every call to them` : ", so users get needless confirmations"}.`,
           evidence: { tools: reads.map(toolName) },
           fix: "Add annotations: { readOnlyHint: true } to read-only tools, and destructiveHint: false to writes that only add data.",
         },
