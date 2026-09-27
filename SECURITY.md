@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately through [GitHub security advisories](https://github.com/VrajVed/mcp-use-compat/security/advisories/new) rather than in a public issue. Include steps to reproduce and the version you used.
+Please report security issues privately through [GitHub security advisories](https://github.com/VrajVed/mcpkit/security/advisories/new) rather than in a public issue. Include steps to reproduce and the version you used.
 
 ## What the tool does on your machine
 

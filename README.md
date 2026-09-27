@@ -18,7 +18,7 @@ npm install -g mcp-use-compat          # install the CLI globally
 npm install --save-dev mcp-use-compat  # add it to a project, e.g. for CI
 ```
 
-To try the latest code from GitHub: `npm install -g github:VrajVed/mcp-use-compat`.
+To try the latest code from GitHub: `npm install -g github:VrajVed/mcpkit`.
 
 ## Quick start
 

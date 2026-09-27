@@ -18,7 +18,7 @@ npm install --save-dev mcp-use-compat
 To use the latest code before a release:
 
 ```bash
-npm install -g github:VrajVed/mcp-use-compat
+npm install -g github:VrajVed/mcpkit
 ```
 
 ## Check a local server (stdio)

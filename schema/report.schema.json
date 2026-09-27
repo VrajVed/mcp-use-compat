@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/VrajVed/mcp-use-compat/schema/report.schema.json",
+  "$id": "https://github.com/VrajVed/mcpkit/schema/report.schema.json",
   "title": "mcp-use-compat report",
   "description": "Output of `mcp-use-compat --format json`. schemaVersion changes only on breaking changes.",
   "type": "object",

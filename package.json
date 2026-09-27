@@ -16,13 +16,13 @@
     "codex",
     "ci"
   ],
-  "homepage": "https://github.com/VrajVed/mcp-use-compat#readme",
+  "homepage": "https://github.com/VrajVed/mcpkit#readme",
   "bugs": {
-    "url": "https://github.com/VrajVed/mcp-use-compat/issues"
+    "url": "https://github.com/VrajVed/mcpkit/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VrajVed/mcp-use-compat.git"
+    "url": "git+https://github.com/VrajVed/mcpkit.git"
   },
   "license": "MIT",
   "author": "VrajVed",

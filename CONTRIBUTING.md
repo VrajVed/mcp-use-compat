@@ -5,8 +5,8 @@ Thanks for helping. The most valuable contributions are usually **client facts**
 ## Setup
 
 ```bash
-git clone https://github.com/VrajVed/mcp-use-compat.git
-cd mcp-use-compat
+git clone https://github.com/VrajVed/mcpkit.git
+cd mcpkit
 npm install        # also builds dist/
 npm test           # unit, fixture and end-to-end tests
 npm run typecheck
