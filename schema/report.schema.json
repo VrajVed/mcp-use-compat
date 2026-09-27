@@ -87,6 +87,7 @@
       "type": "object",
       "required": [
         "connected",
+        "era",
         "counts"
       ],
       "properties": {
@@ -113,6 +114,34 @@
           "additionalProperties": {
             "type": "integer",
             "minimum": 0
+          }
+        },
+        "era": {
+          "enum": [
+            "legacy",
+            "modern",
+            "both"
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "version",
+              "ok"
+            ],
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "negotiated": {
+                "type": "string"
+              }
+            }
           }
         }
       }

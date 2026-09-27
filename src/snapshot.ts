@@ -9,11 +9,19 @@ import { readFileSync, writeFileSync } from "node:fs";
  */
 export interface ServerSnapshot {
   snapshotVersion: 1;
+  /**
+   * Which protocol generation the checks ran over: "legacy" (initialize handshake),
+   * "modern" (2026-07-28 only; lists come from the modern probe) or "both".
+   * Absent in snapshots from older versions = "legacy".
+   */
+  era?: "legacy" | "modern" | "both";
   target: Target;
   connectedAt: string;
   connect: {
     ok: boolean;
     error?: string;
+    /** For era "modern": why the initialize handshake failed. */
+    legacyError?: string;
     /** Transport start → initialize response. */
     startupMs?: number;
   };
@@ -39,6 +47,8 @@ export interface ServerSnapshot {
   http?: HttpProbe;
   /** server/discover (protocol revision 2026-07-28 and later). */
   discover?: DiscoverProbe;
+  /** Everything learned over protocol 2026-07-28. */
+  modern?: ModernProbe;
   /** resources/read results for UI resources that tools link to, keyed by URI. */
   uiReads?: Record<string, UiRead>;
   /** One initialize per protocol version (--version-matrix). */
@@ -74,6 +84,31 @@ export interface UiRead {
   ok: boolean;
   mimeType?: string;
   error?: string;
+}
+
+export interface ModernPageMeta {
+  resultType?: unknown;
+  ttlMs?: unknown;
+  cacheScope?: unknown;
+  /** _meta["io.modelcontextprotocol/serverInfo"] from the result. */
+  serverInfo?: Record<string, unknown>;
+}
+
+export interface ModernProbe {
+  version: string;
+  /** The server answered like a 2026-07-28 server. */
+  supported: boolean;
+  discover: DiscoverProbe;
+  /** Result metadata of server/discover. */
+  discoverMeta?: ModernPageMeta;
+  startupMs?: number;
+  lists?: Partial<Record<ListKind, ListResult>>;
+  /** Result metadata per list page. */
+  pagesMeta?: Partial<Record<ListKind, ModernPageMeta[]>>;
+  uiReads?: Record<string, UiRead>;
+  /** What the server did with a request carrying an unsupported protocol version. */
+  unsupportedVersion?: { answered: boolean; code?: number; message?: string; data?: unknown };
+  stderrTail?: string[];
 }
 
 export interface DiscoverProbe {

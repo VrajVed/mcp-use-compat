@@ -21,12 +21,20 @@ export function markdownReporter(report: Report): string {
   out.push(`# MCP Compatibility Report: ${name}`, "");
   const facts = [
     `Target: \`${where}\``,
-    server.protocolVersion ? `Protocol ${server.protocolVersion}` : undefined,
+    server.protocolVersion
+      ? `Protocol ${server.protocolVersion}${server.era === "modern" ? " (stateless only)" : server.era === "both" ? " (also speaks 2026-07-28)" : ""}`
+      : undefined,
     server.connected
       ? `${server.counts.tools} tools · ${server.counts.resources} resources · ${server.counts.resourceTemplates} resource templates · ${server.counts.prompts} prompts`
       : "Not connected",
   ].filter(Boolean);
   out.push(facts.join(" · "), "");
+  if (server.versions?.length) {
+    const cells = server.versions.map(
+      (v) => `${v.version} ${!v.ok ? "❌" : v.negotiated && v.negotiated !== v.version ? `↪ ${v.negotiated}` : "✅"}`
+    );
+    out.push(`Protocol versions: ${cells.join(" · ")}`, "");
+  }
 
   if (report.clients.length > 0) {
     out.push("## Summary", "", "| Client | Pass | Warn | Fail | Info | Skip |", "|---|---|---|---|---|---|");

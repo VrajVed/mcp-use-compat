@@ -51,6 +51,25 @@ export const EXPLANATIONS: Record<string, Explanation> = {
     why: "Protocol 2026-07-28 requires server/discover. Today's clients still use initialize, so this is informational.",
     sources: [`${MODERN}/basic/lifecycle`],
   },
+  PROTOCOL_MODERN_RESULT_TYPE: {
+    why: "In 2026-07-28 every result carries resultType (complete or input_required) so clients know whether to answer an input request.",
+    sources: [`${MODERN}/basic/index`],
+  },
+  PROTOCOL_MODERN_CACHE_FIELDS: {
+    why: "2026-07-28 list and discover results must say how long they can be cached (ttlMs) and whether the cache is per-user (cacheScope).",
+    sources: [`${MODERN}/changelog`, "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/ab3a39c13bd23be691c2760e1c6c5c15a64582e1/schema/2026-07-28/schema.ts#L1081-L1110"],
+  },
+  PROTOCOL_MODERN_SERVERINFO: {
+    why: "With no initialize, clients learn the server's name and version from _meta on each result.",
+    sources: [`${MODERN}/basic/index`],
+  },
+  PROTOCOL_MODERN_VERSION_ERROR: {
+    why: "Version negotiation in 2026-07-28 relies on the -32022 error listing supported versions; clients retry with one of them.",
+    sources: [`${MODERN}/basic/versioning`],
+  },
+  PROTOCOL_MODERN_SURFACE_DIFFERS: {
+    why: "A server that exposes different tools per protocol behaves differently depending on which protocol a client speaks.",
+  },
   PROTOCOL_VERSION_UNSUPPORTED: {
     why: "SDK-based clients disconnect when the server answers initialize with a protocol version they don't know.",
     sources: [`${SPEC}/basic/lifecycle#version-negotiation`, SDK_TYPES],

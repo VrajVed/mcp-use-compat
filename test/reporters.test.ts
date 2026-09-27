@@ -48,6 +48,19 @@ describe("markdown reporter", () => {
     assert.match(md, /\[source\]\(https:\/\/example\.com\/docs\)/);
   });
 
+  it("shows the protocol versions line when a version matrix ran", () => {
+    const s = snapshot({
+      versionMatrix: [
+        { requested: "2024-11-05", ok: false, error: "nope" },
+        { requested: "2025-11-25", ok: true, negotiated: "2025-11-25" },
+      ],
+      modern: { version: "2026-07-28", supported: false, discover: { ok: false } },
+    });
+    const md = markdownReporter(evaluate(s, [], []));
+    assert.match(md, /Protocol versions: 2024-11-05 ❌ · 2025-11-25 ✅ · 2026-07-28 ❌/);
+    assert.doesNotMatch(markdownReporter(evaluate(snapshot(), [], [])), /Protocol versions/);
+  });
+
   it("escapes table cells", () => {
     assert.match(md, /bad \\\| pipe<br>newline/);
   });

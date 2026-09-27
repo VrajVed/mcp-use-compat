@@ -33,7 +33,15 @@ export interface RawServerConfig {
   resourceContents?: Record<string, { mimeType?: string; text: string }>;
   /** tools/call results by tool name; `{ rpcError }` answers with a JSON-RPC error. */
   callResults?: Record<string, unknown>;
+  /**
+   * 2026-07-28 behaviour for requests carrying the _meta envelope: add resultType,
+   * ttlMs/cacheScope and serverInfo to results (conformant: true), and reject
+   * unsupported versions with -32022.
+   */
+  modern?: { conformant: boolean; tools?: unknown[] };
 }
+
+const MODERN = "2026-07-28";
 
 export async function serve(config: RawServerConfig): Promise<void> {
   if (config.startupDelayMs) await sleep(config.startupDelayMs);
@@ -60,9 +68,33 @@ export async function serve(config: RawServerConfig): Promise<void> {
     }
     if (msg.id === undefined || !msg.method) return;
     const { id, method } = msg;
+    const meta = (msg.params as { _meta?: Record<string, unknown> } | undefined)?._meta;
+    const requestedVersion = meta?.["io.modelcontextprotocol/protocolVersion"];
+    const isModern = config.modern && typeof requestedVersion === "string";
+    if (isModern && config.modern!.conformant && requestedVersion !== MODERN) {
+      send({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32022, message: "Unsupported protocol version", data: { supported: [MODERN], requested: requestedVersion } },
+      });
+      return;
+    }
+    // Decorates results for 2026-07-28 requests when the fixture is conformant.
+    const modernSend = (result: Record<string, unknown>, cacheable: boolean) => {
+      const decorated =
+        isModern && config.modern!.conformant
+          ? {
+              ...result,
+              resultType: "complete",
+              ...(cacheable ? { ttlMs: 60000, cacheScope: "public" } : {}),
+              _meta: { "io.modelcontextprotocol/serverInfo": config.serverInfo ?? { name: "raw-fixture", version: "1.0.0" } },
+            }
+          : result;
+      send({ jsonrpc: "2.0", id, result: decorated });
+    };
 
     if (method === "server/discover" && config.discover) {
-      send({ jsonrpc: "2.0", id, result: config.discover });
+      modernSend(config.discover, true);
       return;
     }
 
@@ -117,7 +149,8 @@ export async function serve(config: RawServerConfig): Promise<void> {
         send({ jsonrpc: "2.0", id, result: { [key]: items.slice(offset, offset + size), nextCursor: next } });
         return;
       }
-      send({ jsonrpc: "2.0", id, result: { [key]: items } });
+      const listed = isModern && key === "tools" && config.modern!.tools ? config.modern!.tools : items;
+      modernSend({ [key]: listed }, true);
       return;
     }
     if (config.brokenMethods?.includes(method)) {

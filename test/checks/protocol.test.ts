@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { protocolChecks } from "../../src/checks/protocol.js";
+import type { ServerSnapshot } from "../../src/snapshot.js";
 import { byId, failedList, goodTool, list, runCheck, snapshot } from "./builders.js";
 
 const check = (id: string) => byId(protocolChecks, id);
@@ -21,6 +22,14 @@ describe("protocol checks", () => {
     );
     assert.equal(f.severity, "error");
     assert.match(f.message, /2026-07-28/);
+  });
+
+  it("PROTOCOL_MODERN_ONLY also recognises era: modern", () => {
+    const [f] = runCheck(
+      check("PROTOCOL_MODERN_ONLY"),
+      snapshot({ era: "modern", connect: { ok: true, legacyError: "Method not found" }, discover: { ok: true, result: { supportedVersions: ["2026-07-28"] } } })
+    );
+    assert.equal(f.evidence?.initializeError, "Method not found");
   });
 
   it("PROTOCOL_DISCOVER_MISSING", () => {
@@ -156,3 +165,80 @@ describe("protocol checks", () => {
     assert.equal(f.subject, "tools");
   });
 });
+
+describe("2026-07-28 checks", () => {
+  const good = { resultType: "complete", ttlMs: 60000, cacheScope: "public", serverInfo: { name: "s", version: "1" } };
+  const modern = (overrides: Partial<NonNullable<ServerSnapshot["modern"]>> = {}, era: ServerSnapshot["era"] = "both") =>
+    snapshot({
+      era,
+      modern: {
+        version: "2026-07-28",
+        supported: true,
+        discover: { ok: true, result: { supportedVersions: ["2026-07-28"], capabilities: {} } },
+        discoverMeta: good,
+        lists: { tools: list([goodTool()]) },
+        pagesMeta: { tools: [good] },
+        unsupportedVersion: { answered: false, code: -32022, data: { supported: ["2026-07-28"] } },
+        ...overrides,
+      },
+    });
+
+  it("none apply to servers that don't speak 2026-07-28", () => {
+    for (const id of ["PROTOCOL_MODERN_RESULT_TYPE", "PROTOCOL_MODERN_CACHE_FIELDS", "PROTOCOL_MODERN_SERVERINFO", "PROTOCOL_MODERN_VERSION_ERROR", "PROTOCOL_MODERN_SURFACE_DIFFERS"]) {
+      assert.equal(check(id).appliesTo(snapshot()), false, id);
+    }
+  });
+
+  it("a conformant server passes all of them", () => {
+    for (const id of ["PROTOCOL_MODERN_RESULT_TYPE", "PROTOCOL_MODERN_CACHE_FIELDS", "PROTOCOL_MODERN_SERVERINFO", "PROTOCOL_MODERN_VERSION_ERROR", "PROTOCOL_MODERN_SURFACE_DIFFERS"]) {
+      assert.deepEqual(runCheck(check(id), modern()), [], id);
+    }
+  });
+
+  it("PROTOCOL_MODERN_RESULT_TYPE", () => {
+    const missing = runCheck(check("PROTOCOL_MODERN_RESULT_TYPE"), modern({ pagesMeta: { tools: [{ ...good, resultType: undefined }] } }));
+    assert.deepEqual(missing.map((f) => [f.severity, f.subject]), [["warn", "tools/list"]]);
+    const invalid = runCheck(check("PROTOCOL_MODERN_RESULT_TYPE"), modern({ discoverMeta: { ...good, resultType: "partial" } }));
+    assert.deepEqual(invalid.map((f) => [f.severity, f.subject]), [["error", "server/discover"]]);
+  });
+
+  it("PROTOCOL_MODERN_CACHE_FIELDS", () => {
+    const [f] = runCheck(
+      check("PROTOCOL_MODERN_CACHE_FIELDS"),
+      modern({ pagesMeta: { tools: [{ ...good, ttlMs: -1 }] }, discoverMeta: { ...good, cacheScope: "shared" } })
+    );
+    assert.equal(f.severity, "warn");
+    assert.equal(f.subject, "server/discover, tools/list");
+  });
+
+  it("PROTOCOL_MODERN_SERVERINFO", () => {
+    const [f] = runCheck(check("PROTOCOL_MODERN_SERVERINFO"), modern({ pagesMeta: { tools: [{ ...good, serverInfo: undefined }] } }));
+    assert.equal(f.severity, "info");
+    assert.match(f.message, /1 result/);
+  });
+
+  it("PROTOCOL_MODERN_VERSION_ERROR", () => {
+    const run = (unsupportedVersion: NonNullable<ServerSnapshot["modern"]>["unsupportedVersion"]) =>
+      runCheck(check("PROTOCOL_MODERN_VERSION_ERROR"), modern({ unsupportedVersion }));
+    assert.match(run({ answered: true })[0].message, /answered normally/);
+    assert.match(run({ answered: false, code: -32602, message: "bad" })[0].message, /instead of -32022/);
+    assert.match(run({ answered: false, code: -32022, data: {} })[0].message, /no data\.supported/);
+  });
+
+  it("PROTOCOL_MODERN_SURFACE_DIFFERS", () => {
+    const s = modern({ lists: { tools: list([goodTool("search"), goodTool("search_v2")]) } });
+    s.lists = { tools: list([goodTool("search"), goodTool("legacy_export")]) };
+    const [f] = runCheck(check("PROTOCOL_MODERN_SURFACE_DIFFERS"), s);
+    assert.deepEqual(f.evidence, { onlyLegacy: ["legacy_export"], onlyModern: ["search_v2"] });
+    // Only compares when the server speaks both.
+    assert.equal(check("PROTOCOL_MODERN_SURFACE_DIFFERS").appliesTo({ ...s, era: "modern" }), false);
+  });
+
+  it("version checks skip servers that only speak 2026-07-28", () => {
+    const s = modern({}, "modern");
+    s.initialize = { ...s.initialize!, negotiatedProtocolVersion: "2026-07-28" };
+    assert.equal(check("PROTOCOL_VERSION_UNSUPPORTED").appliesTo(s), false);
+    assert.equal(check("PROTOCOL_SERVERINFO_MISSING").appliesTo(s), false);
+  });
+});
+

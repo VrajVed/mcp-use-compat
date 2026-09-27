@@ -44,15 +44,41 @@ describe("connect (stdio)", () => {
 
   it("probes server/discover on handshake-only servers", async () => {
     const s = await connect({ ...opts, target: fixture("clean") });
+    assert.equal(s.era, "legacy");
     assert.equal(s.discover?.ok, false);
     assert.equal(s.discover?.error?.code, -32601);
+    assert.equal(s.modern?.supported, false);
   });
 
-  it("recognises a server that only speaks the 2026-07-28 revision", async () => {
+  it("runs a 2026-07-28-only server over the new protocol", async () => {
     const s = await connect({ ...opts, target: fixture("modern-only") });
-    assert.equal(s.connect.ok, false);
-    assert.equal(s.discover?.ok, true);
-    assert.deepEqual(s.discover?.result?.supportedVersions, ["2026-07-28"]);
+    assert.equal(s.era, "modern");
+    assert.equal(s.connect.ok, true);
+    assert.match(s.connect.legacyError ?? "", /initialize/);
+    assert.equal(s.initialize?.negotiatedProtocolVersion, "2026-07-28");
+    assert.deepEqual(s.initialize?.serverInfo, { name: "modern", version: "1.0.0" });
+    assert.deepEqual(s.lists.tools?.items.map((t) => t.name), ["get_weather", "bad.name"]);
+    assert.deepEqual(s.modern?.pagesMeta?.tools?.[0], {
+      resultType: "complete",
+      ttlMs: 60000,
+      cacheScope: "public",
+      serverInfo: { name: "modern", version: "1.0.0" },
+    });
+    assert.equal(s.modern?.unsupportedVersion?.code, -32022);
+  });
+
+  it("records what a sloppy 2026-07-28 server leaves out", async () => {
+    const s = await connect({ ...opts, target: fixture("modern-sloppy") });
+    assert.equal(s.era, "modern");
+    assert.equal(s.modern?.pagesMeta?.tools?.[0].resultType, undefined);
+    assert.equal(s.modern?.unsupportedVersion?.answered, true);
+  });
+
+  it("marks servers that speak both protocols and keeps both tool lists", async () => {
+    const s = await connect({ ...opts, target: fixture("dual") });
+    assert.equal(s.era, "both");
+    assert.deepEqual(s.lists.tools?.items.map((t) => t.name), ["search", "legacy_export"]);
+    assert.deepEqual(s.modern?.lists?.tools?.items.map((t) => t.name), ["search", "search_v2"]);
   });
 
   it("reads the UI resources tools link to", async () => {
@@ -92,6 +118,8 @@ describe("connect (http)", () => {
       assert.equal(s.lists.tools?.items.length, 1);
       assert.equal(s.http?.unauthenticated.status, 200);
       assert.deepEqual(s.http?.protectedResource, []);
+      assert.equal(s.era, "legacy");
+      assert.equal(s.modern?.supported, false);
     } finally {
       server.stop();
     }

@@ -86,11 +86,14 @@ describe("cli end to end", () => {
     assert.equal(JSON.parse(readFileSync(file, "utf8")).snapshotVersion, 1);
   });
 
-  it("reports a modern-only server without crashing", async () => {
+  it("checks a modern-only server over 2026-07-28", async () => {
     const { code, report } = await json("--", TSX, fixturePath("modern-only"));
     assert.equal(code, 1);
-    assert.ok(report.findings.some((f: { checkId: string }) => f.checkId === "PROTOCOL_MODERN_ONLY"));
-    assert.ok(!report.findings.some((f: { checkId: string }) => f.checkId === "TRANSPORT_CONNECT_FAILED"));
+    assert.equal(report.server.era, "modern");
+    const ids = report.findings.map((f: { checkId: string }) => f.checkId);
+    assert.ok(ids.includes("PROTOCOL_MODERN_ONLY"));
+    assert.ok(ids.includes("TOOL_DESCRIPTION_MISSING"), "regular checks run over the modern tool list");
+    assert.ok(!ids.includes("TRANSPORT_CONNECT_FAILED"));
   });
 
   it("prints markdown by default", async () => {

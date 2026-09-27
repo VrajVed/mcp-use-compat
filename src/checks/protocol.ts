@@ -1,15 +1,31 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
-import { LIST_KINDS, type ListKind, type ServerSnapshot } from "../snapshot.js";
+import { LIST_KINDS, type ListKind, type ModernPageMeta, type ServerSnapshot } from "../snapshot.js";
 import { connected, declared, str } from "./util.js";
 import { defineCheck, type Finding } from "./types.js";
 
 const KINDS = Object.keys(LIST_KINDS) as ListKind[];
 
 const MODERN = "2026-07-28";
+const SPEC_MODERN = `https://modelcontextprotocol.io/specification/${MODERN}`;
 
-/** Server rejected initialize but answers server/discover. */
+/** Server rejected initialize but speaks 2026-07-28 (older snapshots: discover worked, connect failed). */
 export function modernOnly(s: ServerSnapshot): boolean {
-  return !s.connect.ok && !!s.discover?.ok;
+  return s.era === "modern" || (!s.connect.ok && !!s.discover?.ok);
+}
+
+const legacyConnected = (s: ServerSnapshot) => connected(s) && s.era !== "modern";
+const modernSupported = (s: ServerSnapshot) => !!s.modern?.supported && !!s.modern.lists;
+
+const VALID_RESULT_TYPES = new Set(["complete", "input_required"]);
+
+/** Every modern result we saw, labelled by where it came from. */
+function modernResults(s: ServerSnapshot): Array<[string, ModernPageMeta]> {
+  const out: Array<[string, ModernPageMeta]> = [];
+  if (s.modern?.discoverMeta) out.push(["server/discover", s.modern.discoverMeta]);
+  for (const kind of KINDS) {
+    for (const meta of s.modern?.pagesMeta?.[kind] ?? []) out.push([LIST_KINDS[kind].method, meta]);
+  }
+  return out;
 }
 
 function supportedVersions(s: ServerSnapshot): string[] {
@@ -30,7 +46,7 @@ export const protocolChecks = [
               checkId: "PROTOCOL_MODERN_ONLY",
               severity: "error",
               message: `Server rejects initialize and only answers server/discover (versions: ${supportedVersions(s).join(", ") || "none listed"}). Clients that still use the initialize handshake (protocol 2025-11-25 and older) cannot connect.`,
-              evidence: { initializeError: s.connect.error, discover: s.discover?.result },
+              evidence: { initializeError: s.connect.legacyError ?? s.connect.error, discover: s.discover?.result },
               fix: "Keep accepting initialize alongside server/discover until your target clients support the new revision.",
             },
           ]
@@ -56,10 +72,136 @@ export const protocolChecks = [
   }),
 
   defineCheck({
+    id: "PROTOCOL_MODERN_RESULT_TYPE",
+    area: "protocol",
+    description: `${MODERN} results carry a valid resultType`,
+    appliesTo: modernSupported,
+    run: (s) => {
+      const results = modernResults(s);
+      const missing = results.filter(([, m]) => m.resultType === undefined).map(([where]) => where);
+      const invalid = results.filter(([, m]) => m.resultType !== undefined && !VALID_RESULT_TYPES.has(String(m.resultType)));
+      const findings: Finding[] = [];
+      if (missing.length) {
+        findings.push({
+          checkId: "PROTOCOL_MODERN_RESULT_TYPE",
+          severity: "warn",
+          subject: [...new Set(missing)].join(", "),
+          message: `${MODERN} requires resultType on every result; it's missing from ${[...new Set(missing)].join(", ")}. The v2 SDK treats a missing value as "complete", but stricter clients may not.`,
+          source: `${SPEC_MODERN}/basic/index`,
+          fix: 'Upgrade to an SDK that implements 2026-07-28, or add resultType: "complete".',
+        });
+      }
+      for (const [where, meta] of invalid) {
+        findings.push({
+          checkId: "PROTOCOL_MODERN_RESULT_TYPE",
+          severity: "error",
+          subject: where,
+          message: `resultType ${JSON.stringify(meta.resultType)} is not "complete" or "input_required"; clients must treat the result as invalid.`,
+          source: `${SPEC_MODERN}/basic/index`,
+        });
+      }
+      return findings;
+    },
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_MODERN_CACHE_FIELDS",
+    area: "protocol",
+    description: `${MODERN} list and discover results carry ttlMs and cacheScope`,
+    appliesTo: modernSupported,
+    run: (s) => {
+      const bad = modernResults(s).filter(
+        ([, m]) => typeof m.ttlMs !== "number" || m.ttlMs < 0 || (m.cacheScope !== "public" && m.cacheScope !== "private")
+      );
+      if (bad.length === 0) return [];
+      const where = [...new Set(bad.map(([w]) => w))];
+      return [
+        {
+          checkId: "PROTOCOL_MODERN_CACHE_FIELDS",
+          severity: "warn",
+          subject: where.join(", "),
+          message: `${MODERN} requires ttlMs (≥ 0) and cacheScope ("public" or "private") on ${where.join(", ")}, but they're missing or invalid (e.g. ttlMs=${JSON.stringify(bad[0][1].ttlMs ?? null)}, cacheScope=${JSON.stringify(bad[0][1].cacheScope ?? null)}). Clients can't tell how long to cache the list, or whether it's per-user.`,
+          source: `${SPEC_MODERN}/changelog`,
+          fix: 'Return e.g. ttlMs: 60000, cacheScope: "private" (use "private" when the list depends on who is authorized).',
+        },
+      ];
+    },
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_MODERN_SERVERINFO",
+    area: "protocol",
+    description: `${MODERN} results identify the server in _meta`,
+    appliesTo: modernSupported,
+    run: (s) => {
+      const missing = modernResults(s).filter(([, m]) => !m.serverInfo);
+      if (missing.length === 0) return [];
+      return [
+        {
+          checkId: "PROTOCOL_MODERN_SERVERINFO",
+          severity: "info",
+          message: `Without initialize, results SHOULD carry _meta["io.modelcontextprotocol/serverInfo"]; ${missing.length} result(s) don't, so clients can't show which server answered.`,
+          source: `${SPEC_MODERN}/basic/index`,
+        },
+      ];
+    },
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_MODERN_VERSION_ERROR",
+    area: "protocol",
+    description: `${MODERN} servers reject unsupported versions with UnsupportedProtocolVersion (-32022)`,
+    appliesTo: (s) => modernSupported(s) && !!s.modern?.unsupportedVersion,
+    run: (s) => {
+      const r = s.modern!.unsupportedVersion!;
+      const data = r.data as { supported?: unknown } | undefined;
+      if (!r.answered && r.code === -32022 && Array.isArray(data?.supported)) return [];
+      return [
+        {
+          checkId: "PROTOCOL_MODERN_VERSION_ERROR",
+          severity: "warn",
+          message: r.answered
+            ? "A request with an unsupported protocol version (1999-01-01) was answered normally. Clients rely on the -32022 error to retry with a version both sides support."
+            : r.code !== -32022
+              ? `An unsupported protocol version got error ${r.code ?? "(none)"} ("${r.message}") instead of -32022, so clients won't know to retry with another version.`
+              : "The -32022 error has no data.supported list, so clients can't pick a version to retry with.",
+          evidence: { answered: r.answered, code: r.code, data: r.data },
+          source: `${SPEC_MODERN}/basic/versioning`,
+          fix: 'Answer unknown versions with { code: -32022, data: { supported: ["2026-07-28", ...], requested } }.',
+        },
+      ];
+    },
+  }),
+
+  defineCheck({
+    id: "PROTOCOL_MODERN_SURFACE_DIFFERS",
+    area: "protocol",
+    description: `Tools are the same over the initialize handshake and ${MODERN}`,
+    appliesTo: (s) => s.era === "both" && !!s.modern?.lists?.tools?.ok && !!s.lists.tools?.ok,
+    run: (s) => {
+      const names = (items: Array<Record<string, unknown>>) => new Set(items.flatMap((t) => (typeof t.name === "string" ? [t.name] : [])));
+      const legacy = names(s.lists.tools!.items);
+      const modern = names(s.modern!.lists!.tools!.items);
+      const onlyLegacy = [...legacy].filter((n) => !modern.has(n));
+      const onlyModern = [...modern].filter((n) => !legacy.has(n));
+      if (!onlyLegacy.length && !onlyModern.length) return [];
+      return [
+        {
+          checkId: "PROTOCOL_MODERN_SURFACE_DIFFERS",
+          severity: "info",
+          message: `Tool lists differ by protocol: only over initialize: ${onlyLegacy.join(", ") || "none"}; only over ${MODERN}: ${onlyModern.join(", ") || "none"}. Clients see different tools depending on which protocol they speak.`,
+          evidence: { onlyLegacy, onlyModern },
+          fix: "Expose the same tools on both, unless the difference is intentional.",
+        },
+      ];
+    },
+  }),
+
+  defineCheck({
     id: "PROTOCOL_VERSION_UNSUPPORTED",
     area: "protocol",
     description: "Negotiated protocol version is one the SDK supports",
-    appliesTo: connected,
+    appliesTo: legacyConnected,
     run: (s) => {
       const v = s.initialize?.negotiatedProtocolVersion;
       if (v && SUPPORTED_PROTOCOL_VERSIONS.includes(v)) return [];
@@ -82,7 +224,7 @@ export const protocolChecks = [
     area: "protocol",
     description: "Server speaks the latest protocol version",
     appliesTo: (s) =>
-      connected(s) && SUPPORTED_PROTOCOL_VERSIONS.includes(s.initialize?.negotiatedProtocolVersion ?? ""),
+      legacyConnected(s) && SUPPORTED_PROTOCOL_VERSIONS.includes(s.initialize?.negotiatedProtocolVersion ?? ""),
     run: (s) => {
       const v = s.initialize!.negotiatedProtocolVersion!;
       if (v === LATEST_PROTOCOL_VERSION) return [];
@@ -173,7 +315,7 @@ export const protocolChecks = [
     id: "PROTOCOL_SERVERINFO_MISSING",
     area: "protocol",
     description: "initialize returns serverInfo with name and version",
-    appliesTo: connected,
+    appliesTo: legacyConnected,
     run: (s) => {
       const info = s.initialize?.serverInfo;
       const missing = ["name", "version"].filter((k) => !str(info?.[k]));

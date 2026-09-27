@@ -86,7 +86,7 @@ npx mcp-use-compat list-clients
 | `--save-snapshot <file>` / `--from-snapshot <file>` | | Save or re-check a snapshot |
 | `--probe-calls` | | Call read-only tools (see below) and check their results: valid result shape, `structuredContent` matching `outputSchema`, a text fallback |
 | `--oauth` | | Use credentials from `oauth login` (with `--url`) |
-| `--version-matrix` | | Also `initialize` with each published protocol version (2024-11-05 to 2025-11-25), one session each |
+| `--version-matrix` | | Also connect with each published handshake version (2024-11-05 to 2025-11-25), one session each; 2026-07-28 is always probed |
 
 Exit codes: `0` nothing matched `--fail-on` · `1` something did · `2` usage error · `3` the server could not be started or reached.
 
@@ -152,6 +152,11 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 |---|---|
 | `PROTOCOL_MODERN_ONLY` | Server still accepts the initialize handshake most clients use |
 | `PROTOCOL_DISCOVER_MISSING` | Server implements server/discover (required from protocol 2026-07-28) |
+| `PROTOCOL_MODERN_RESULT_TYPE` | 2026-07-28 results carry a valid resultType |
+| `PROTOCOL_MODERN_CACHE_FIELDS` | 2026-07-28 list and discover results carry ttlMs and cacheScope |
+| `PROTOCOL_MODERN_SERVERINFO` | 2026-07-28 results identify the server in _meta |
+| `PROTOCOL_MODERN_VERSION_ERROR` | 2026-07-28 servers reject unsupported versions with UnsupportedProtocolVersion (-32022) |
+| `PROTOCOL_MODERN_SURFACE_DIFFERS` | Tools are the same over the initialize handshake and 2026-07-28 |
 | `PROTOCOL_VERSION_UNSUPPORTED` | Negotiated protocol version is one the SDK supports |
 | `PROTOCOL_VERSION_OLD` | Server speaks the latest protocol version |
 | `PROTOCOL_VERSIONS_REJECTED` | Server handles every published protocol version clients may request (--version-matrix) |
@@ -251,7 +256,12 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 
 ## Protocol versions
 
-The checks run over the `initialize` handshake, which is what current clients use. `--version-matrix` also tries each published handshake revision (2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25) and reports versions the server rejects, answers incorrectly, or serves different tools on. For the stateless 2026-07-28 revision, the tool calls `server/discover` and reports servers that only speak the new revision; full checks over the new revision are in progress.
+The checks run over the `initialize` handshake, which is what current clients use. Every published revision is covered:
+
+- **2024-11-05 → 2025-11-25** (the `initialize` handshake): checks run over the latest; `--version-matrix` also connects once per revision and reports versions the server rejects, answers incorrectly, or serves different tools on.
+- **2026-07-28** (stateless): always probed in a separate session with the `_meta` envelope and required HTTP headers. For servers that speak it, the tool checks `resultType`, `ttlMs`/`cacheScope`, `serverInfo` in `_meta`, the `-32022` unsupported-version error, and whether tools match the handshake's. Servers that *only* speak 2026-07-28 get every check run over the new protocol.
+
+With `--version-matrix` the report shows a line like `Protocol versions: 2024-11-05 ✅ · 2025-03-26 ✅ · 2025-06-18 ✅ · 2025-11-25 ✅ · 2026-07-28 ❌`.
 
 ## Development
 

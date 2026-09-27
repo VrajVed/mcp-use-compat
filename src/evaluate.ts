@@ -29,6 +29,10 @@ export interface Report {
   target: Target;
   server: {
     connected: boolean;
+    /** Protocol generation the checks ran over. */
+    era: "legacy" | "modern" | "both";
+    /** Per protocol version: did it work, and what did the server answer (--version-matrix). */
+    versions?: Array<{ version: string; ok: boolean; negotiated?: string }>;
     name?: string;
     version?: string;
     protocolVersion?: string;
@@ -108,6 +112,15 @@ export function evaluate(snapshot: ServerSnapshot, checks: Check[], profiles: Cl
     target: snapshot.target,
     server: {
       connected: snapshot.connect.ok,
+      era: snapshot.era ?? "legacy",
+      versions: snapshot.versionMatrix
+        ? [
+            ...snapshot.versionMatrix.map((v) => ({ version: v.requested, ok: v.ok, negotiated: v.negotiated })),
+            ...(snapshot.modern
+              ? [{ version: snapshot.modern.version, ok: snapshot.modern.supported, negotiated: snapshot.modern.supported ? snapshot.modern.version : undefined }]
+              : []),
+          ]
+        : undefined,
       name: typeof info?.name === "string" ? info.name : undefined,
       version: typeof info?.version === "string" ? info.version : undefined,
       protocolVersion: snapshot.initialize?.negotiatedProtocolVersion,
