@@ -137,3 +137,52 @@ describe("parseCommandLine (subcommands)", () => {
   });
 });
 
+describe("short options and aliases", () => {
+  it("check: short flags match their long forms", () => {
+    const long = parseCommandLine(
+      ["--url", "https://m.example/mcp", "--timeout", "5000", "--header", "A: 1", "--save-snapshot", "s.json", "--version-matrix", "--probe-calls", "--fail-on", "warn", "--oauth", "--offline", "--no-auth-probe"],
+      quiet
+    );
+    const short = parseCommandLine(
+      ["-u", "https://m.example/mcp", "-t", "5000", "-H", "A: 1", "-s", "s.json", "-m", "-p", "-F", "warn", "-A", "-O", "-N"],
+      quiet
+    );
+    assert.deepEqual(short, long);
+    assert.equal(short.command === "check" && short.options.authProbe, false);
+  });
+
+  it("check: -e, -C and -r", () => {
+    const i = parseCommandLine(["-e", "K=V", "-C", "/srv", "--", "node", "s.js"], quiet);
+    assert.deepEqual(i.command === "check" && i.options.target, { kind: "stdio", command: "node", args: ["s.js"], cwd: "/srv", env: { K: "V" } });
+    const r = parseCommandLine(["-r", "snap.json"], quiet);
+    assert.equal(r.command === "check" && r.options.fromSnapshot, "snap.json");
+  });
+
+  it("command aliases", () => {
+    assert.equal(parseCommandLine(["up", "-a", "-M", "-O", "-d", "/p"], quiet).command, "upgrade");
+    const up = parseCommandLine(["up", "-a", "-M", "-O", "-d", "/p"], quiet);
+    assert.equal(up.command === "upgrade" && up.options.apply && up.options.major && up.options.offline && up.options.dir, "/p");
+    assert.deepEqual(parseCommandLine(["ex", "TOOL_NAME_TOO_LONG"], quiet), { command: "explain", checkId: "TOOL_NAME_TOO_LONG" });
+    assert.equal(parseCommandLine(["checks"], quiet).command, "list-checks");
+    assert.equal(parseCommandLine(["clients"], quiet).command, "list-clients");
+  });
+
+  it("diff, fix and oauth short flags", () => {
+    const d = parseCommandLine(["diff", "a.json", "b.json", "-F", "any"], quiet);
+    assert.equal(d.command === "diff" && d.options.failOn, "any");
+    const f = parseCommandLine(["fix", "s.json", "-j", "-r"], quiet);
+    assert.deepEqual(f.command === "fix" && [f.options.format, f.options.rename], ["json", true]);
+    const l = parseCommandLine(["oauth", "login", "-u", "https://m.example/mcp", "-P", "8787", "-i", "id", "-k", "sec", "-s", "read", "-n", "-t", "1000"], quiet);
+    assert.deepEqual(
+      l.command === "oauth-login" && [l.options.callbackPort, l.options.clientId, l.options.clientSecret, l.options.scope, l.options.openBrowser, l.options.timeoutMs],
+      [8787, "id", "sec", "read", false, 1000]
+    );
+    assert.deepEqual(parseCommandLine(["oauth", "logout", "-u", "https://m.example/mcp"], quiet), { command: "oauth-logout", url: "https://m.example/mcp" });
+  });
+
+  it("an alias after -- is still treated as the server command", () => {
+    const i = parseCommandLine(["--", "up", "x"], quiet);
+    assert.equal(i.command === "check" && i.options.target?.kind === "stdio" && i.options.target.command, "up");
+  });
+});
+

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- Short forms for every option, for example `-u` (`--url`), `-m` (`--version-matrix`), `-p` (`--probe-calls`), `-F` (`--fail-on`), `-H` (`--header`), `-C` (`--cwd`). Short flags can be combined: `mcpkit -mp -- node dist/server.js`.
+- Command aliases: `up` (`upgrade`), `ex` (`explain`), `checks` (`list-checks`), `clients` (`list-clients`).
+
 ## 0.4.1
 
 - Renamed from `mcp-use-compat` to `@vrajved/mcpkit` (the unscoped `mcpkit` name is blocked by npm as too similar to an existing package). Install with `npm install -g @vrajved/mcpkit`; the command is `mcpkit`. Stored OAuth credentials move to `~/.config/mcpkit/oauth.json` automatically.

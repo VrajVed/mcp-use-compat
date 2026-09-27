@@ -108,13 +108,13 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .argument("[command...]", "stdio server command, after --")
     .passThroughOptions();
   addTargetOptions(check)
-    .option("--save-snapshot <file>", "write the raw server snapshot to a file")
-    .option("--version-matrix", "also initialize with every protocol version (one session each)", false)
-    .option("--probe-calls", "call tools that declare readOnlyHint: true, with arguments generated from their schema", false)
+    .option("-s, --save-snapshot <file>", "write the raw server snapshot to a file")
+    .option("-m, --version-matrix", "also initialize with every protocol version (one session each)", false)
+    .option("-p, --probe-calls", "call tools that declare readOnlyHint: true, with arguments generated from their schema", false)
     .option("-c, --clients <list>", "comma-separated client ids (default: all)", splitList)
     .option("-f, --format <format>", "md | json | github", parseFormat, "md")
     .option("-o, --out <file>", "write the report to a file instead of stdout")
-    .option("--fail-on <spec>", "error | warn | none | comma list of check ids/areas", "error")
+    .option("-F, --fail-on <spec>", "error | warn | none | comma list of check ids/areas", "error")
     .option("--list-checks", "same as the list-checks command", false)
     .option("--list-clients", "same as the list-clients command", false)
     .action((command: string[], opts: Record<string, unknown>) => {
@@ -136,12 +136,12 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
 
   program
     .command("diff")
-    .description("compare two snapshots (or JSON reports) and classify tool-surface changes")
-    .argument("<before>", "snapshot or --format json report from the old version")
-    .argument("<after>", "snapshot or --format json report from the new version")
+    .description("compare two snapshots and classify tool-surface changes")
+    .argument("<before>", "snapshot (--save-snapshot) from the old version")
+    .argument("<after>", "snapshot (--save-snapshot) from the new version")
     .option("-f, --format <format>", "md | json | github", parseFormat, "md")
     .option("-o, --out <file>", "write the diff to a file instead of stdout")
-    .option("--fail-on <level>", "breaking | any | none", parseDiffFailOn, "breaking")
+    .option("-F, --fail-on <level>", "breaking | any | none", parseDiffFailOn, "breaking")
     .action((before: string, after: string, opts: Record<string, unknown>) => {
       result = {
         command: "diff",
@@ -181,14 +181,14 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
   oauth
     .command("login")
     .description("run the browser OAuth flow, report each step, and store the tokens")
-    .requiredOption("--url <url>", "MCP server URL")
-    .option("--callback-port <port>", "local port for the redirect (0 = random; pre-registered clients need a fixed one)", parsePort, 0)
-    .option("--client-id <id>", "use a pre-registered client instead of CIMD/DCR")
-    .option("--client-secret <secret>", "secret for --client-id (confidential clients)")
-    .option("--client-metadata-url <url>", "HTTPS URL of a Client ID Metadata Document you host (used if the server supports CIMD)")
-    .option("--scope <scope>", "scopes to request (default: what the server advertises)")
-    .option("--no-browser", "print the login URL instead of opening a browser")
-    .option("--timeout <ms>", "how long to wait for the browser login", parsePositiveInt, 300000)
+    .requiredOption("-u, --url <url>", "MCP server URL")
+    .option("-P, --callback-port <port>", "local port for the redirect (0 = random; pre-registered clients need a fixed one)", parsePort, 0)
+    .option("-i, --client-id <id>", "use a pre-registered client instead of CIMD/DCR")
+    .option("-k, --client-secret <secret>", "secret for --client-id (confidential clients)")
+    .option("-m, --client-metadata-url <url>", "HTTPS URL of a Client ID Metadata Document you host (used if the server supports CIMD)")
+    .option("-s, --scope <scope>", "scopes to request (default: what the server advertises)")
+    .option("-n, --no-browser", "print the login URL instead of opening a browser")
+    .option("-t, --timeout <ms>", "how long to wait for the browser login", parsePositiveInt, 300000)
     .action((opts: Record<string, unknown>) => {
       result = {
         command: "oauth-login",
@@ -211,21 +211,22 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
   oauth
     .command("logout")
     .description("delete stored credentials for a server")
-    .requiredOption("--url <url>", "MCP server URL")
+    .requiredOption("-u, --url <url>", "MCP server URL")
     .action((opts: Record<string, unknown>) => void (result = { command: "oauth-logout", url: parseUrl(opts.url as string) }));
 
   program
     .command("upgrade")
+    .alias("up")
     .description("find the server's MCP SDK, compare it with the latest release, and print (or --apply) the upgrade")
     .usage("[options] [-- <server command>]")
     .argument("[command...]", "stdio server command, after --; with --apply the server is re-checked before and after")
-    .option("--dir <path>", "project directory, when no server command is given", process.cwd())
-    .option("--cwd <dir>", "working directory for the server command", process.cwd())
-    .option("--env <KEY=VAL>", "environment variable for the server (repeatable)", collectKeyValue("="), {})
-    .option("--apply", "run the upgrade commands (minor updates; majors need --major)", false)
-    .option("--major", "with --apply, also run major-version upgrades", false)
-    .option("--offline", "don't look up latest versions", false)
-    .option("--timeout <ms>", "per-request timeout for the re-checks", parsePositiveInt, 10000)
+    .option("-d, --dir <path>", "project directory, when no server command is given", process.cwd())
+    .option("-C, --cwd <dir>", "working directory for the server command", process.cwd())
+    .option("-e, --env <KEY=VAL>", "environment variable for the server (repeatable)", collectKeyValue("="), {})
+    .option("-a, --apply", "run the upgrade commands (minor updates; majors need --major)", false)
+    .option("-M, --major", "with --apply, also run major-version upgrades", false)
+    .option("-O, --offline", "don't look up latest versions", false)
+    .option("-t, --timeout <ms>", "per-request timeout for the re-checks", parsePositiveInt, 10000)
     .action((command: string[], opts: Record<string, unknown>) => {
       const target: ConnectTarget | undefined = command.length
         ? { kind: "stdio", command: command[0], args: command.slice(1), cwd: opts.cwd as string, env: opts.env as Record<string, string> }
@@ -248,8 +249,8 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
     .description("apply safe mechanical fixes to tool definitions and list what changed")
     .argument("<input>", "snapshot (from --save-snapshot), { tools: [...] } or an array of tools")
     .option("-o, --out <file>", "write the fixed { tools } JSON to a file")
-    .option("--json", "print the fixed { tools } JSON to stdout", false)
-    .option("--rename", "also rename tools with characters clients rewrite (breaking for callers)", false)
+    .option("-j, --json", "print the fixed { tools } JSON to stdout", false)
+    .option("-r, --rename", "also rename tools with characters clients rewrite (breaking for callers)", false)
     .action((input: string, opts: Record<string, unknown>) => {
       result = {
         command: "fix",
@@ -259,17 +260,20 @@ export function parseCommandLine(argv: string[], warn: Warn = console.error): In
 
   program
     .command("explain")
+    .alias("ex")
     .description("explain what a check verifies, why, and where the facts come from")
     .argument("<check-id>")
     .action((checkId: string) => void (result = { command: "explain", checkId }));
 
   program
     .command("list-checks")
+    .alias("checks")
     .description("print all checks")
     .action(() => void (result = { command: "list-checks" }));
 
   program
     .command("list-clients")
+    .alias("clients")
     .description("print client profiles and how fresh their facts are")
     .action(() => void (result = { command: "list-clients" }));
 
@@ -305,15 +309,15 @@ export function parseArgs(argv: string[], warn: Warn = console.error): RunOption
 /** Adds --url/--from-snapshot/--env/--header/--cwd/--timeout/--no-auth-probe. */
 export function addTargetOptions(cmd: Command): Command {
   return cmd
-    .option("--url <url>", "Streamable HTTP endpoint instead of a stdio command")
-    .option("--from-snapshot <file>", "use a saved snapshot instead of connecting")
-    .option("--timeout <ms>", "per-request timeout in ms (startup gets 2x)", parsePositiveInt, 10000)
-    .option("--env <KEY=VAL>", "environment variable for the stdio server (repeatable)", collectKeyValue("="), {})
-    .option("--header <Name:Value>", "HTTP header for --url (repeatable)", collectKeyValue(":"), {})
-    .option("--cwd <dir>", "working directory for the stdio server", process.cwd())
-    .option("--no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)")
-    .option("--oauth", "use credentials stored by `oauth login` (--url only)", false)
-    .option("--offline", "don't look up the latest SDK versions", false);
+    .option("-u, --url <url>", "Streamable HTTP endpoint instead of a stdio command")
+    .option("-r, --from-snapshot <file>", "use a saved snapshot instead of connecting")
+    .option("-t, --timeout <ms>", "per-request timeout in ms (startup gets 2x)", parsePositiveInt, 10000)
+    .option("-e, --env <KEY=VAL>", "environment variable for the stdio server (repeatable)", collectKeyValue("="), {})
+    .option("-H, --header <Name:Value>", "HTTP header for --url (repeatable)", collectKeyValue(":"), {})
+    .option("-C, --cwd <dir>", "working directory for the stdio server", process.cwd())
+    .option("-N, --no-auth-probe", "skip unauthenticated OAuth discovery requests (--url only)")
+    .option("-A, --oauth", "use credentials stored by `oauth login` (--url only)", false)
+    .option("-O, --offline", "don't look up the latest SDK versions", false);
 }
 
 /** Turns the shared target options plus the positional command into a TargetOptions. */

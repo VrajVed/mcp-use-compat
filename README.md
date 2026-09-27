@@ -52,16 +52,18 @@ Real examples:
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `check` (default) | Connect to a server and report issues per client |
-| `upgrade` | Find the server's MCP SDK, compare with the latest release, print or apply the upgrade |
-| `diff <before> <after>` | Compare two snapshots: breaking changes and new compatibility failures |
-| `call <tool>` | Call one tool and check its result |
-| `oauth login \| status \| logout` | Log in to an OAuth-protected server and reuse the token |
-| `fix <snapshot>` | Apply safe mechanical fixes to tool definitions |
-| `explain <CHECK_ID>` | Why a check exists, its sources, and the client facts it uses |
-| `list-checks`, `list-clients` | Print all checks, or the client profiles and how fresh their facts are |
+| Command | Short | What it does |
+|---|---|---|
+| `check` (default) | | Connect to a server and report issues per client |
+| `upgrade` | `up` | Find the server's MCP SDK, compare with the latest release, print or apply the upgrade |
+| `diff <before> <after>` | | Compare two snapshots: breaking changes and new compatibility failures |
+| `call <tool>` | | Call one tool and check its result |
+| `oauth login \| status \| logout` | | Log in to an OAuth-protected server and reuse the token |
+| `fix <snapshot>` | | Apply safe mechanical fixes to tool definitions |
+| `explain <CHECK_ID>` | `ex` | Why a check exists, its sources, and the client facts it uses |
+| `list-checks`, `list-clients` | `checks`, `clients` | Print all checks, or the client profiles and how fresh their facts are |
+
+Every option also has a short form (for example `-u` for `--url`, `-m` for `--version-matrix`); see the tables below or `mcpkit <command> --help`.
 
 ## Guides
 
@@ -97,23 +99,26 @@ mcpkit --save-snapshot snap.json -- node dist/server.js
 mcpkit --from-snapshot snap.json
 ```
 
-| Option | Default | |
-|---|---|---|
-| `--url <url>` | | Streamable HTTP endpoint instead of a stdio command |
-| `-c, --clients <list>` | all | Comma-separated client ids or aliases |
-| `-f, --format <md\|json\|github>` | `md` | `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and a job summary |
-| `-o, --out <file>` | stdout | Write the report to a file |
-| `--fail-on <spec>` | `error` | `error`, `warn`, `none`, or check ids, globs and areas (`TOOL_*,auth`) |
-| `--timeout <ms>` | `10000` | Per request; startup gets twice this |
-| `--env KEY=VAL` | | Environment for the stdio server (repeatable) |
-| `--header "Name: Value"` | | HTTP header for `--url` (repeatable) |
-| `--cwd <dir>` | `.` | Working directory for the stdio server |
-| `--oauth` | | Use credentials from `oauth login` (with `--url`) |
-| `--probe-calls` | | Call tools that declare `readOnlyHint: true` and check their results |
-| `--version-matrix` | | Also connect with each handshake version (2024-11-05 to 2025-11-25) |
-| `--save-snapshot <file>`, `--from-snapshot <file>` | | Save or re-check a snapshot |
-| `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
-| `--offline` | | Don't look up the latest SDK versions |
+| Option | Short | Default | |
+|---|---|---|---|
+| `--url <url>` | `-u` | | Streamable HTTP endpoint instead of a stdio command |
+| `--clients <list>` | `-c` | all | Comma-separated client ids or aliases |
+| `--format <md\|json\|github>` | `-f` | `md` | `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and a job summary |
+| `--out <file>` | `-o` | stdout | Write the report to a file |
+| `--fail-on <spec>` | `-F` | `error` | `error`, `warn`, `none`, or check ids, globs and areas (`TOOL_*,auth`) |
+| `--timeout <ms>` | `-t` | `10000` | Per request; startup gets twice this |
+| `--env KEY=VAL` | `-e` | | Environment for the stdio server (repeatable) |
+| `--header "Name: Value"` | `-H` | | HTTP header for `--url` (repeatable) |
+| `--cwd <dir>` | `-C` | `.` | Working directory for the stdio server |
+| `--oauth` | `-A` | | Use credentials from `oauth login` (with `--url`) |
+| `--probe-calls` | `-p` | | Call tools that declare `readOnlyHint: true` and check their results |
+| `--version-matrix` | `-m` | | Also connect with each handshake version (2024-11-05 to 2025-11-25) |
+| `--save-snapshot <file>` | `-s` | | Save what the server exposed |
+| `--from-snapshot <file>` | `-r` | | Re-check a saved snapshot instead of connecting |
+| `--no-auth-probe` | `-N` | | Skip the unauthenticated OAuth discovery requests |
+| `--offline` | `-O` | | Don't look up the latest SDK versions |
+
+Short flags combine like any CLI, for example `mcpkit -mp -c cursor,vscode -- node dist/server.js`.
 
 Exit codes: `0` nothing matched `--fail-on`, `1` something did, `2` usage error, `3` the server could not be started or reached.
 
@@ -133,6 +138,8 @@ mcpkit upgrade --apply -- node dist/server.js    # run it, then re-check the ser
 mcpkit upgrade --apply --major -- node dist/server.js
 ```
 
+Options: `-a, --apply`, `-M, --major`, `-d, --dir <path>`, `-C, --cwd <dir>`, `-e, --env KEY=VAL`, `-O, --offline`, `-t, --timeout <ms>`. `up` is short for `upgrade`.
+
 `upgrade` finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp` and `fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the virtualenv, lockfiles), looks up the latest release, and prints the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go or cargo).
 
 `--apply` runs minor upgrades, and major ones only with `--major`. It updates `==` pins in requirements files, and when you pass the server command it checks the server before and after, then reports the protocol change and any breaking changes to its tools. Moving from `@modelcontextprotocol/sdk` v1 to the v2 packages is a migration, so it is explained but never applied automatically.
@@ -147,6 +154,8 @@ mcpkit check --save-snapshot after.json -- node dist/server.js
 mcpkit diff before.json after.json    # exits 1 on breaking changes
 ```
 
+Options: `-F, --fail-on <breaking|any|none>`, `-f, --format <md|json|github>`, `-o, --out <file>`.
+
 Breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
 
 ## OAuth-protected servers
@@ -158,6 +167,8 @@ mcpkit oauth status
 mcpkit oauth logout --url https://example.com/mcp
 ```
 
+Options for `oauth login`: `-u, --url`, `-i, --client-id`, `-k, --client-secret`, `-P, --callback-port`, `-m, --client-metadata-url`, `-s, --scope`, `-n, --no-browser`, `-t, --timeout`.
+
 `oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (Client ID Metadata Documents, Dynamic Client Registration, or `--client-id` for a pre-registered client), the authorization request (PKCE S256 and `resource`), the callback (`state` and `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcpkit/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
 
 ## Fixing tool definitions
@@ -166,6 +177,8 @@ mcpkit oauth logout --url https://example.com/mcp
 mcpkit fix snap.json --out fixed-tools.json
 mcpkit fix snap.json --rename    # also rename tools that clients would rewrite
 ```
+
+Options: `-o, --out <file>`, `-j, --json`, `-r, --rename`.
 
 `fix` never invents content. It removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement, such as a non-object root schema or a missing description, is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
 

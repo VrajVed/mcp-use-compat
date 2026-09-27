@@ -61,6 +61,8 @@ The process exits `0` when nothing matched `--fail-on` (default: any FAIL), `1` 
 
 ## Common next steps
 
+Every option has a short form (`-u` for `--url`, `-m` for `--version-matrix`, `-p` for `--probe-calls` and so on); `mcpkit <command> --help` lists them. `up` is short for `upgrade` and `ex` for `explain`.
+
 ```bash
 # Only the clients you care about (ids or aliases: claude, vscode, gemini, ...)
 mcpkit --clients claude-desktop,cursor,vscode -- node dist/server.js
