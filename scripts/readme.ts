@@ -35,7 +35,7 @@ function limits(p: ClientProfile): string {
   if (l.toolNameChars) parts.push(`chars \`[${l.toolNameChars.value.allowed}]\` (${l.toolNameChars.value.onInvalid})`);
   if (l.maxTools) parts.push(`≤ ${l.maxTools.value} tools`);
   if (l.maxDescriptionLength) parts.push(`descriptions ≤ ${l.maxDescriptionLength.value} chars`);
-  return parts.join("; ") || "–";
+  return parts.join("; ") || "none";
 }
 
 export function clientsSection(): string {
@@ -50,7 +50,7 @@ export function clientsSection(): string {
     divider,
     ...rows,
     "",
-    `✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified ${dates[0]}${dates.at(-1) !== dates[0] ? ` to ${dates.at(-1)}` : ""}; run \`mcp-use-compat --list-clients\` for details.`,
+    `✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified ${dates[0]}${dates.at(-1) !== dates[0] ? ` to ${dates.at(-1)}` : ""}; run \`mcp-use-compat list-clients\` for details.`,
   ].join("\n");
 }
 

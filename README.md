@@ -1,26 +1,80 @@
 # mcp-use-compat
 
-Check an MCP server for problems that break it in specific MCP clients (Claude, ChatGPT, Cursor, VS Code, OpenCode) before your users find them.
+Find the problems that break an MCP server in specific MCP clients, before your users do.
 
-It connects to your server once, records what the server actually exposes, and runs checks against that. Client-specific results come from per-client profiles where every fact links to its source (docs, source code, or maintainer statements), so a report tells you *what* breaks, *where*, and *how we know*.
+MCP is one protocol, but every client reads it differently: Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code, OpenCode, Codex, Gemini CLI, Cline, Goose, Continue and Windsurf each rename, truncate, validate, cache and render things their own way. `mcp-use-compat` connects to your server, records what it actually exposes, and checks it against sourced facts about each client. Every client-specific result links to where the fact comes from (docs, pinned client source, or maintainer statements), so a report tells you what breaks, where, and how we know.
 
-```
+```bash
 npx mcp-use-compat -- node dist/server.js
 ```
 
+## Installation
+
+Requires Node.js 20 or newer. Your server can be written in any language.
+
+```bash
+npx mcp-use-compat --help              # run without installing
+npm install -g mcp-use-compat          # install the CLI globally
+npm install --save-dev mcp-use-compat  # add it to a project, e.g. for CI
+```
+
+To try the latest code from GitHub: `npm install -g github:VrajVed/mcp-use-compat`.
+
+## Quick start
+
+```bash
+# A local server: put its start command after --
+npx mcp-use-compat -- node dist/server.js
+npx mcp-use-compat -- uv run server.py
+
+# A remote server
+npx mcp-use-compat --url https://example.com/mcp
+
+# Is its MCP SDK up to date?
+npx mcp-use-compat upgrade -- node dist/server.js
+```
+
+You get a report per client, with a fix for every problem, and an exit code for CI. New here? Start with the [getting started guide](docs/getting-started.md).
+
 ## What it finds
 
-A few real examples from the checks:
+Real examples:
 
-- `description: null` on a tool: allowed to be absent, not null. The TypeScript SDK rejects the **whole** `tools/list` response, so SDK-based clients see no tools at all.
-- `files.read` and `files_read` in the same server: Cursor, VS Code and OpenCode replace `.` with `_`, so the two tools collide and one disappears.
-- A 60+ character tool name: Cursor and VS Code count their server prefix too, then truncate the name the model sees.
-- A top-level argument called `"start time"`: Claude Code can drop the whole tool (behind a flag since v2.1.216).
-- Logs on stdout: SDK clients drop the lines, and a log write without a newline corrupts the next protocol message.
-- An OAuth server without `code_challenge_methods_supported`: spec-following clients must refuse to connect, and ChatGPT does.
-- A UI tool linked only via `openai/outputTemplate`: VS Code only reads `_meta.ui.resourceUri` and shows no UI.
+- **`description: null` on a tool.** Absent is allowed, null is not: the TypeScript SDK rejects the whole `tools/list` response, so SDK-based clients see no tools at all.
+- **`files.read` and `files_read` in one server.** Cursor, VS Code and OpenCode replace `.` with `_`, so the two collide and one tool disappears.
+- **Long tool names.** Cursor, VS Code and Gemini CLI count their server prefix and then truncate, so the model sees a mangled name.
+- **A large input schema.** Codex compacts schemas over 5,000 characters and strips your descriptions first.
+- **A root-level `anyOf` without `"type": "object"`.** Cline fails to register it and drops every tool from the server.
+- **Structured results without a text copy.** Gemini CLI, Goose and Continue only pass text to the model, so it gets an empty result.
+- **Logs on stdout.** SDK clients drop the lines, and a log write without a newline corrupts the next protocol message.
+- **OAuth metadata without PKCE S256.** Spec-following clients must refuse to connect, and ChatGPT does.
+- **An outdated SDK.** `mcp` 1.27.2 when 2.2.0 is out: you get the exact upgrade command for your package manager, and `upgrade --apply` can run it and re-check the server.
 
-## Usage
+## Commands
+
+| Command | What it does |
+|---|---|
+| `check` (default) | Connect to a server and report issues per client |
+| `upgrade` | Find the server's MCP SDK, compare with the latest release, print or apply the upgrade |
+| `diff <before> <after>` | Compare two snapshots: breaking changes and new compatibility failures |
+| `call <tool>` | Call one tool and check its result |
+| `oauth login \| status \| logout` | Log in to an OAuth-protected server and reuse the token |
+| `fix <snapshot>` | Apply safe mechanical fixes to tool definitions |
+| `explain <CHECK_ID>` | Why a check exists, its sources, and the client facts it uses |
+| `list-checks`, `list-clients` | Print all checks, or the client profiles and how fresh their facts are |
+
+## Guides
+
+- [Getting started](docs/getting-started.md): install, first check, troubleshooting
+- [Reading reports](docs/reading-reports.md): statuses, `--fail-on`, output formats, the JSON report
+- [Using it in CI](docs/ci.md): GitHub Actions, gating builds, artifacts
+- [Comparing releases](docs/snapshots-and-diff.md): snapshots and `diff`
+- [Upgrading your MCP SDK](docs/upgrading-sdks.md): `upgrade` and `--apply`
+- [Testing tool calls](docs/tool-calls.md): `--probe-calls` and `call`
+- [OAuth-protected servers](docs/oauth.md): `oauth login` and `--oauth`
+- [Client profiles](docs/client-profiles.md): how client facts are sourced and used
+
+## Checking a server
 
 ```bash
 # stdio: pass the full command after --
@@ -32,101 +86,109 @@ npx mcp-use-compat --env API_KEY=test -- npx -y @acme/mcp-server
 npx mcp-use-compat --url https://example.com/mcp
 npx mcp-use-compat --url https://example.com/mcp --header "Authorization: Bearer $TOKEN"
 
-# Only some clients (ids or aliases: claude, vscode, ...)
-npx mcp-use-compat --clients cursor,vscode -- node dist/server.js
+# Only some clients (ids or aliases such as claude, vscode, gemini)
+npx mcp-use-compat --clients cursor,vscode,codex -- node dist/server.js
 
-# Save what the server exposed, re-check it later without running it
+# Also try every published protocol version, and call read-only tools
+npx mcp-use-compat --version-matrix --probe-calls -- node dist/server.js
+
+# Save what the server exposed and re-check it later without running it
 npx mcp-use-compat --save-snapshot snap.json -- node dist/server.js
 npx mcp-use-compat --from-snapshot snap.json
-
-# Also try every published protocol version
-npx mcp-use-compat --version-matrix -- node dist/server.js
 ```
-
-### Other commands
-
-```bash
-# Compare two snapshots: breaking vs non-breaking changes, plus new compatibility failures
-npx mcp-use-compat check --save-snapshot before.json -- node old/server.js
-npx mcp-use-compat check --save-snapshot after.json -- node dist/server.js
-npx mcp-use-compat diff before.json after.json          # exits 1 on breaking changes
-
-# Call one tool yourself and check its result
-npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
-
-# OAuth-protected servers: log in once (browser), then check with the stored token
-npx mcp-use-compat oauth login --url https://example.com/mcp
-npx mcp-use-compat check --oauth --url https://example.com/mcp
-npx mcp-use-compat oauth status
-npx mcp-use-compat oauth logout --url https://example.com/mcp
-
-# Is the server's MCP SDK up to date? Get the exact upgrade command for your package manager
-npx mcp-use-compat upgrade -- node dist/server.js
-# Apply it, then re-check the server and show what changed (majors need --major)
-npx mcp-use-compat upgrade --apply -- node dist/server.js
-
-# Safe mechanical fixes to tool definitions, with a list of what changed
-npx mcp-use-compat fix snap.json --out fixed-tools.json
-npx mcp-use-compat fix snap.json --rename      # also rename tools clients would rewrite
-
-# Why does a check exist, and which client facts does it use?
-npx mcp-use-compat explain TOOL_NAME_TOO_LONG
-
-npx mcp-use-compat list-checks
-npx mcp-use-compat list-clients
-```
-
-`oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (CIMD, DCR, or `--client-id` for a pre-registered client), the authorization request (PKCE S256, `resource`), the callback (`state`, `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
-
-`upgrade` (and `check`, for stdio servers) finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp`/`fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the venv, lockfiles), looks up the latest release, and gives the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go, cargo). When the server negotiates an old protocol version, that command appears in the finding itself. `--apply` runs minor upgrades (majors only with `--major`), updates `==` pins in requirements files, and, given the server command, checks the server before and after and reports any breaking changes. Moving from `@modelcontextprotocol/sdk` v1 to the v2 packages is a migration and is never applied automatically. Use `--offline` to skip registry lookups.
-
-`fix` never invents content: it removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement (a non-object root schema, a missing description) is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
-
-`diff` treats as breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
 
 | Option | Default | |
 |---|---|---|
 | `--url <url>` | | Streamable HTTP endpoint instead of a stdio command |
 | `-c, --clients <list>` | all | Comma-separated client ids or aliases |
-| `-f, --format <md\|json\|github>` | `md` | `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and writes a job summary |
+| `-f, --format <md\|json\|github>` | `md` | `json` follows [`schema/report.schema.json`](schema/report.schema.json); `github` prints workflow annotations and a job summary |
 | `-o, --out <file>` | stdout | Write the report to a file |
-| `--fail-on <spec>` | `error` | `error`, `warn`, `none`, or check ids / globs / areas (`TOOL_*,auth`) |
+| `--fail-on <spec>` | `error` | `error`, `warn`, `none`, or check ids, globs and areas (`TOOL_*,auth`) |
 | `--timeout <ms>` | `10000` | Per request; startup gets twice this |
 | `--env KEY=VAL` | | Environment for the stdio server (repeatable) |
 | `--header "Name: Value"` | | HTTP header for `--url` (repeatable) |
 | `--cwd <dir>` | `.` | Working directory for the stdio server |
-| `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
-| `--save-snapshot <file>` / `--from-snapshot <file>` | | Save or re-check a snapshot |
-| `--probe-calls` | | Call read-only tools (see below) and check their results: valid result shape, `structuredContent` matching `outputSchema`, a text fallback |
 | `--oauth` | | Use credentials from `oauth login` (with `--url`) |
-| `--version-matrix` | | Also connect with each published handshake version (2024-11-05 to 2025-11-25), one session each; 2026-07-28 is always probed |
+| `--probe-calls` | | Call tools that declare `readOnlyHint: true` and check their results |
+| `--version-matrix` | | Also connect with each handshake version (2024-11-05 to 2025-11-25) |
+| `--save-snapshot <file>`, `--from-snapshot <file>` | | Save or re-check a snapshot |
+| `--no-auth-probe` | | Skip the unauthenticated OAuth discovery requests |
+| `--offline` | | Don't look up the latest SDK versions |
 
-Exit codes: `0` nothing matched `--fail-on` · `1` something did · `2` usage error · `3` the server could not be started or reached.
+Exit codes: `0` nothing matched `--fail-on`, `1` something did, `2` usage error, `3` the server could not be started or reached.
 
-### What it sends to your server
+**What it sends to your server:** `initialize`, the tools, resources, resource templates and prompts list methods, `resources/read` for UI resources that tools link to, and a separate 2026-07-28 session (`server/discover` and the same list methods). Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known URLs. For stdio servers it reads the project's manifest and lockfiles to find the MCP SDK, and looks up the latest SDK release on the package registry (skip with `--offline`).
 
-`initialize`, the `tools`, `resources`, resource template and `prompts` list methods, `resources/read` for UI resources that tools link to, and `server/discover` (with `--version-matrix`, one extra `initialize` + `tools/list` per protocol version). Over HTTP it also makes one unauthenticated `initialize` POST and GETs the OAuth well-known metadata URLs.
+**Tool calls happen only when you ask.** `--probe-calls` calls tools that explicitly declare `readOnlyHint: true`, never ones that also claim to be destructive or are named like writes (for example `place_order`), with the minimal arguments their schema requires. `call <tool>` calls exactly the tool you name:
 
-It only calls tools when you ask: `--probe-calls` calls tools that explicitly declare `readOnlyHint: true` (never ones that also claim to be destructive or are named like writes, e.g. `place_order`), with the minimal arguments their schema requires; `call <tool>` calls exactly the tool you name.
+```bash
+npx mcp-use-compat call get_quote --args '{"symbol":"INFY"}' -- node dist/server.js
+```
+
+## Keeping the SDK current
+
+```bash
+npx mcp-use-compat upgrade -- node dist/server.js            # what to upgrade, and the command
+npx mcp-use-compat upgrade --apply -- node dist/server.js    # run it, then re-check the server
+npx mcp-use-compat upgrade --apply --major -- node dist/server.js
+```
+
+`upgrade` finds the server's project from its command and working directory and detects the MCP SDK it uses: `@modelcontextprotocol/sdk`, `@modelcontextprotocol/server`, `mcp-use`, `fastmcp` and others on npm, `mcp` and `fastmcp` on PyPI, the Go SDKs and `rmcp`. It reads the installed version (`node_modules`, the virtualenv, lockfiles), looks up the latest release, and prints the command for the package manager the project uses (npm, pnpm, yarn, bun, uv, poetry, pipenv, pip, go or cargo).
+
+`--apply` runs minor upgrades, and major ones only with `--major`. It updates `==` pins in requirements files, and when you pass the server command it checks the server before and after, then reports the protocol change and any breaking changes to its tools. Moving from `@modelcontextprotocol/sdk` v1 to the v2 packages is a migration, so it is explained but never applied automatically.
+
+`check` uses the same detection: when a server negotiates an old protocol version, the finding includes the exact upgrade command.
+
+## Comparing versions
+
+```bash
+npx mcp-use-compat check --save-snapshot before.json -- node old/server.js
+npx mcp-use-compat check --save-snapshot after.json -- node dist/server.js
+npx mcp-use-compat diff before.json after.json    # exits 1 on breaking changes
+```
+
+Breaking: removed tools, resources, templates, prompts or capabilities; new required arguments; arguments that become required or change type; removed enum values; removed or no-longer-guaranteed output fields; and compatibility errors that are new in the second snapshot. Description and annotation changes are reported as notable.
+
+## OAuth-protected servers
+
+```bash
+npx mcp-use-compat oauth login --url https://example.com/mcp
+npx mcp-use-compat check --oauth --url https://example.com/mcp
+npx mcp-use-compat oauth status
+npx mcp-use-compat oauth logout --url https://example.com/mcp
+```
+
+`oauth login` runs the flow MCP clients use and reports each step: discovery, client registration (Client ID Metadata Documents, Dynamic Client Registration, or `--client-id` for a pre-registered client), the authorization request (PKCE S256 and `resource`), the callback (`state` and `iss`), the token exchange, and an authenticated `tools/list`. Credentials are stored in `~/.config/mcp-use-compat/oauth.json`, readable only by you. Runs with `--oauth` never register a client or open a browser; they refresh stored tokens or tell you to log in again.
+
+## Fixing tool definitions
+
+```bash
+npx mcp-use-compat fix snap.json --out fixed-tools.json
+npx mcp-use-compat fix snap.json --rename    # also rename tools that clients would rewrite
+```
+
+`fix` never invents content. It removes `description: null`, adds a missing `inputSchema`, sets an object-shaped root to `"type": "object"`, drops `required` entries that aren't properties, and removes invalid `required` values and empty `enum`s. Anything that needs judgement, such as a non-object root schema or a missing description, is listed as a TODO. Tool definitions live in your code, so apply the listed changes there.
 
 ## In CI
 
-Copy [`examples/github-workflow.yml`](examples/github-workflow.yml). With `--format github`, findings show up as annotations on the pull request.
+Copy [`examples/github-workflow.yml`](examples/github-workflow.yml). With `--format github`, findings show up as annotations on the pull request, and `diff` can gate releases on breaking changes.
 
-## Example report (excerpt)
+## How results are decided
+
+- **FAIL and WARN only for what the server was seen doing:** a null description, a colliding name, a missing OAuth field. A client limitation your server doesn't trigger is never reported as a failure.
+- **Client-specific results cite a source.** If a client's behaviour is unknown, the check doesn't guess; it passes.
+- **INFO** covers things worth knowing that break nothing today, such as no `server/discover` yet.
+- Rules borrowed from other linters were checked against client source before being adopted. Most were wrong or unsourced and were left out.
+
+Example rows from a report:
 
 ```markdown
 | Status | Check | Subject | Message |
 |---|---|---|---|
 | ❌ FAIL | `TOOL_NAME_CLIENT_COLLISION` | files.read, files_read | "files.read" and "files_read" both become "files_read" in Cursor, so only one of them is usable. |
-| ⚠️ WARN | `TOOL_NAME_TOO_LONG` | create_calendar_event_… | With Cursor's server prefix ("bad-tools", …) the name is 68 characters; the limit is 60 and Cursor truncates it and appends a hash, so the model sees a mangled name. |
+| ⚠️ WARN | `SCHEMA_TOO_LARGE` | create_update_strategy | inputSchema is about 12540 characters; OpenAI Codex CLI compacts schemas over 5000. |
+| ⚠️ WARN | `SDK_OUTDATED` | mcp | mcp 1.27.2 → 2.2.0 (major version: check the changelog for breaking changes); adds protocol 2026-07-28. |
 ```
-
-## How results are decided
-
-- **FAIL / WARN only for what the server was seen doing**: a null description, a colliding name, a missing OAuth field. A client limitation that your server doesn't trigger is never reported as a failure.
-- **Client-specific results cite a source.** If a client's behaviour is unknown, the check doesn't guess; it passes.
-- **INFO** covers things worth knowing that break nothing today (e.g. no `server/discover` yet).
 
 ## Clients
 
@@ -135,7 +197,7 @@ Copy [`examples/github-workflow.yml`](examples/github-workflow.yml). With `--for
 |---|---|---|---|---|---|---|---|---|---|
 | Claude Desktop / claude.ai | [✅](https://claude.com/docs/connectors/building/mcpb) | [✅](https://claude.com/docs/connectors/building/index) | ? | [✅](https://claude.com/docs/connectors/building/index) | [✅](https://claude.com/docs/connectors/building/index) | [✅](https://claude.com/docs/connectors/building/index) | [✅](https://claude.com/docs/connectors/building/authentication) | [✅](https://claude.com/docs/connectors/building/mcp-apps/getting-started) | chars `[A-Za-z0-9_-]` (unknown) |
 | Claude Code | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [✅](https://code.claude.com/docs/en/mcp) | [❌](https://code.claude.com/docs/en/mcp) | prefix `mcp__{server}__`; name ≤ 128 (unknown); chars `[A-Za-z0-9_-]` (unknown); descriptions ≤ 2048 chars |
-| ChatGPT (Apps SDK / connectors) | [⚠️](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | [✅](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | [❌](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | ? | ? | [✅](https://developers.openai.com/apps-sdk/build/auth) | [✅](https://developers.openai.com/apps-sdk/build/auth) | [✅](https://developers.openai.com/apps-sdk/reference) | – |
+| ChatGPT (Apps SDK / connectors) | [⚠️](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | [✅](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | [❌](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt) | ? | ? | [✅](https://developers.openai.com/apps-sdk/build/auth) | [✅](https://developers.openai.com/apps-sdk/build/auth) | [✅](https://developers.openai.com/apps-sdk/reference) | none |
 | Cursor | [✅](https://cursor.com/docs/mcp) | [✅](https://cursor.com/docs/mcp) | [⚠️](https://forum.cursor.com/t/mcp-server-regression-does-not-reload-tools-disconnect-does-nothing-ignores-mcp-json-changes-etc/166216) | [✅](https://cursor.com/docs/mcp) | [✅](https://cursor.com/docs/mcp) | [✅](https://cursor.com/docs/mcp) | ? | [✅](https://cursor.com/docs/mcp) | prefix `{server}`; name ≤ 60 (truncateWithHash); chars `[A-Za-z0-9_-]` (replace) |
 | VS Code (GitHub Copilot) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | [✅](https://github.com/microsoft/vscode/blob/a460613c57b4c1eb2bc8edc97be694e05ae286b2/src/vs/workbench/contrib/mcp/common/mcpServer.ts#L1224-L1227) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | [✅](https://github.com/microsoft/vscode/blob/a460613c57b4c1eb2bc8edc97be694e05ae286b2/src/vs/workbench/api/browser/mainThreadAuthentication.ts#L178-L192) | [✅](https://code.visualstudio.com/api/extension-guides/ai/mcp) | prefix `mcp_{server}_`; name ≤ 64 (truncate); chars `[A-Za-z0-9_-]` (replace); ≤ 128 tools |
 | OpenCode | [✅](https://opencode.ai/docs/mcp-servers/) | [✅](https://github.com/anomalyco/opencode/blob/a42f393c850bec0c0f395fb91bf19b1ee8b31666/packages/opencode/src/mcp/index.ts#L268-L283) | [✅](https://github.com/anomalyco/opencode/blob/a42f393c850bec0c0f395fb91bf19b1ee8b31666/packages/opencode/src/mcp/index.ts#L461-L471) | [✅](https://github.com/anomalyco/opencode/blob/a42f393c850bec0c0f395fb91bf19b1ee8b31666/packages/opencode/src/mcp/catalog.ts#L130-L134) | [✅](https://github.com/anomalyco/opencode/blob/a42f393c850bec0c0f395fb91bf19b1ee8b31666/packages/opencode/src/mcp/catalog.ts#L122-L126) | [✅](https://opencode.ai/docs/mcp-servers/) | ? | [❌](https://github.com/anomalyco/opencode/blob/a42f393c850bec0c0f395fb91bf19b1ee8b31666/packages/opencode/src/mcp/) | prefix `{server}_`; chars `[A-Za-z0-9_-]` (replace) |
@@ -146,7 +208,7 @@ Copy [`examples/github-workflow.yml`](examples/github-workflow.yml). With `--for
 | Continue | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L391) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L535-L550) | [❌](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L286) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L292-L300) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPConnection.ts#L343-L350) | [✅](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/context/mcp/MCPOauth.ts) | ? | [⚠️](https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/tools/callTool.ts#L115-L142) | prefix `{server}_` |
 | Windsurf / Devin Desktop | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | ? | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | [✅](https://docs.devin.ai/desktop/cascade/mcp) | ? | ? | ≤ 100 tools |
 
-✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified 2026-09-26 to 2026-09-27; run `mcp-use-compat --list-clients` for details.
+✅ supported · ❌ not supported · ⚠️ partial or unreliable · ? unknown. Every mark links to its source. Facts verified 2026-09-26 to 2026-09-27; run `mcp-use-compat list-clients` for details.
 <!-- clients:end -->
 
 Client behaviour changes quickly. If a fact is wrong or stale, please open an issue or PR against `src/profiles/` with a source.
@@ -289,21 +351,25 @@ Client behaviour changes quickly. If a fact is wrong or stale, please open an is
 
 ## Protocol versions
 
-The checks run over the `initialize` handshake, which is what current clients use. Every published revision is covered:
+Every published revision is covered:
 
-- **2024-11-05 → 2025-11-25** (the `initialize` handshake): checks run over the latest; `--version-matrix` also connects once per revision and reports versions the server rejects, answers incorrectly, or serves different tools on.
-- **2026-07-28** (stateless): always probed in a separate session with the `_meta` envelope and required HTTP headers. For servers that speak it, the tool checks `resultType`, `ttlMs`/`cacheScope`, `serverInfo` in `_meta`, the `-32022` unsupported-version error, and whether tools match the handshake's. Servers that *only* speak 2026-07-28 get every check run over the new protocol.
+- **2024-11-05 to 2025-11-25** (the `initialize` handshake, which current clients use): the checks run over the latest version the server supports. `--version-matrix` also connects once per revision and reports versions the server rejects, answers incorrectly, or serves different tools on.
+- **2026-07-28** (stateless): always probed in a separate session with the `_meta` envelope and the required HTTP headers. For servers that speak it, the tool checks `resultType`, `ttlMs` and `cacheScope`, `serverInfo` in `_meta`, the `-32022` unsupported-version error, and whether the tools match the handshake's. Servers that only speak 2026-07-28 get every check run over the new protocol.
 
 With `--version-matrix` the report shows a line like `Protocol versions: 2024-11-05 ✅ · 2025-03-26 ✅ · 2025-06-18 ✅ · 2025-11-25 ✅ · 2026-07-28 ❌`.
 
-## Development
+## Contributing
+
+Corrections to client facts are the most useful contribution: client behaviour changes often. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, how facts must be sourced, and how to add a check.
 
 ```bash
 npm install
 npm test          # unit, fixture and end-to-end tests
-npm run readme    # regenerate the Clients and Checks sections above
+npm run readme    # regenerate the Clients and Checks sections
 ```
+
+Security issues: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT
+[MIT](LICENSE)

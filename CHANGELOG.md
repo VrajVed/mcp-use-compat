@@ -1,0 +1,23 @@
+# Changelog
+
+## 0.3.0
+
+- Commands: `check` (default), `upgrade`, `diff`, `call`, `oauth`, `fix`, `explain`, `list-checks`, `list-clients`.
+- Twelve clients: Claude Desktop, Claude Code, ChatGPT, Cursor, VS Code (GitHub Copilot), OpenCode, Codex CLI, Gemini CLI, Cline, Goose, Continue and Windsurf. Every fact links to its source.
+- All published protocol versions: `--version-matrix` for 2024-11-05 to 2025-11-25, and full support for the stateless 2026-07-28 revision.
+- `upgrade` detects the server's MCP SDK, shows installed and latest versions, prints the command for your package manager, and with `--apply` upgrades and re-checks the server.
+- Tool calls: `--probe-calls` (read-only tools only) and `call <tool>`, with result, output schema, size and timeout checks.
+- `oauth login` runs and reports the full OAuth flow; `--oauth` reuses the stored token.
+- `diff` classifies breaking changes between two snapshots.
+- `fix` applies safe mechanical fixes to tool definitions.
+- Rules from other linters were verified against client source before being adopted.
+
+## 0.2.0
+
+- Real connection layer for stdio and Streamable HTTP, replacing the simulated clients of 0.1.
+- Checks run on what the server actually returns; client-specific results come from sourced client profiles.
+- Markdown, JSON and GitHub annotation reports, `--fail-on`, snapshots.
+
+## 0.1.0
+
+- First prototype.

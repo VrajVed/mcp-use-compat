@@ -1,19 +1,51 @@
 {
   "name": "mcp-use-compat",
-  "version": "0.1.0",
-  "description": "Test MCP servers against simulated client environments",
+  "version": "0.3.0",
+  "description": "Find the problems that break an MCP server in specific MCP clients (Claude, ChatGPT, Cursor, VS Code, Codex and more), with sourced client facts, SDK upgrade help and CI output.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "compatibility",
+    "lint",
+    "testing",
+    "claude",
+    "chatgpt",
+    "cursor",
+    "vscode",
+    "codex",
+    "ci"
+  ],
+  "homepage": "https://github.com/VrajVed/mcp-use-compat#readme",
+  "bugs": {
+    "url": "https://github.com/VrajVed/mcp-use-compat/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VrajVed/mcp-use-compat.git"
+  },
+  "license": "MIT",
+  "author": "VrajVed",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
     "mcp-use-compat": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "schema",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p .",
     "dev": "tsc -p . --watch",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "prepack": "npm run build",
-    "readme": "tsx scripts/readme.ts"
+    "readme": "tsx scripts/readme.ts",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
@@ -29,18 +61,5 @@
   },
   "engines": {
     "node": ">=20"
-  },
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "ai",
-    "testing",
-    "compatibility"
-  ],
-  "license": "MIT",
-  "files": [
-    "dist",
-    "schema",
-    "README.md"
-  ]
+  }
 }
