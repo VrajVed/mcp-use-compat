@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Repository moved to github.com/VrajVed/mcpkit; package links updated. No code changes.
+
 ## 0.3.0
 
 - Commands: `check` (default), `upgrade`, `diff`, `call`, `oauth`, `fix`, `explain`, `list-checks`, `list-clients`.
