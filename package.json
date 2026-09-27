@@ -1,6 +1,6 @@
 {
   "name": "@vrajved/mcpkit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Find the problems that break an MCP server in specific MCP clients (Claude, ChatGPT, Cursor, VS Code, Codex and more), with sourced client facts, SDK upgrade help and CI output.",
   "keywords": [
     "mcp",
